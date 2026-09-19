@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/ml-service
+/ml-service/venv/
 /.pnp
 .pnp.*
 .yarn/*
@@ -39,3 +41,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+venv/
