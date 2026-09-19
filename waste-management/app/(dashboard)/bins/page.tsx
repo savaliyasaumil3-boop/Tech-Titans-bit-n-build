@@ -4,13 +4,13 @@ import { useState } from "react";
 import { Header } from "@/components/layout/header";
 import { BinFilters } from "@/components/bins/bin-filters";
 import { BinsTable } from "@/components/bins/bins-table";
-import { useLiveData } from "@/components/providers/live-data-provider";
+import { useAppData } from "@/components/providers/app-data-provider";
 import type { BinStatus, WasteType } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Trash2, AlertTriangle, CheckCircle2, Flame } from "lucide-react";
 
 export default function BinsPage() {
-  const { bins } = useLiveData();
+  const { bins } = useAppData();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<BinStatus | "all">("all");
   const [wasteTypeFilter, setWasteTypeFilter] = useState<WasteType | "all">("all");

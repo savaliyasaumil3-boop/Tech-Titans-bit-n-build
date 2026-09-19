@@ -1,10 +1,9 @@
 "use client";
 
-import { useLiveData } from "@/components/providers/live-data-provider";
+import { useAppData } from "@/components/providers/app-data-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -13,30 +12,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Clock, Truck } from "lucide-react";
+import { Clock, MapPin, Truck } from "lucide-react";
+import type { PriorityCategory } from "@/lib/db-types";
+import { getPriorityCategory } from "@/lib/services/priority-engine";
 
 function priorityBadge(score: number) {
-  if (score >= 80)
-    return (
-      <Badge className="bg-red-500/10 text-red-600 border-red-200 hover:bg-red-500/20">
-        Critical
-      </Badge>
-    );
-  if (score >= 60)
-    return (
-      <Badge className="bg-amber-500/10 text-amber-600 border-amber-200 hover:bg-amber-500/20">
-        High
-      </Badge>
-    );
-  if (score >= 40)
-    return (
-      <Badge className="bg-yellow-500/10 text-yellow-700 border-yellow-200 hover:bg-yellow-500/20">
-        Medium
-      </Badge>
-    );
+  const cat = getPriorityCategory(score);
+  const styles: Record<PriorityCategory, string> = {
+    critical: "bg-red-500/10 text-red-600 border-red-200 hover:bg-red-500/20",
+    high: "bg-amber-500/10 text-amber-600 border-amber-200 hover:bg-amber-500/20",
+    medium: "bg-yellow-500/10 text-yellow-700 border-yellow-200 hover:bg-yellow-500/20",
+    low: "bg-green-500/10 text-green-600 border-green-200 hover:bg-green-500/20",
+  };
+  const labels: Record<PriorityCategory, string> = {
+    critical: "Critical",
+    high: "High",
+    medium: "Medium",
+    low: "Low",
+  };
   return (
-    <Badge className="bg-green-500/10 text-green-600 border-green-200 hover:bg-green-500/20">
-      Low
+    <Badge className={styles[cat]}>
+      {labels[cat]} · {score}
     </Badge>
   );
 }
@@ -47,12 +43,14 @@ function fillColor(level: number) {
   return "bg-green-500";
 }
 
-export function CollectionPriority() {
-  const { bins } = useLiveData();
+interface CollectionPriorityProps {
+  onFocusBin?: (binId: string) => void;
+}
 
-  const sorted = [...bins]
-    .sort((a, b) => b.priorityScore - a.priorityScore)
-    .slice(0, 8);
+export function CollectionPriority({ onFocusBin }: CollectionPriorityProps) {
+  const { priorityBins } = useAppData();
+
+  const top8 = priorityBins.slice(0, 8);
 
   return (
     <Card>
@@ -61,7 +59,7 @@ export function CollectionPriority() {
           Collection Priority
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Bins ranked by urgency — highest priority first
+          Bins ranked by AI urgency score — highest priority first
         </p>
       </CardHeader>
       <CardContent className="px-0 pb-0">
@@ -79,46 +77,73 @@ export function CollectionPriority() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sorted.map((bin) => (
-                <TableRow key={bin.id}>
-                  <TableCell className="pl-6 font-mono text-xs">
-                    {bin.id}
-                  </TableCell>
-                  <TableCell className="font-medium text-sm">
-                    {bin.locationName}
+              {top8.map((bin) => (
+                <TableRow
+                  key={bin.bin_id}
+                  className="hover:bg-muted/30 transition-colors"
+                >
+                  <TableCell className="pl-6">
+                    <span className="font-mono text-xs font-semibold">{bin.bin_id}</span>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                    <span className="text-xs text-muted-foreground truncate max-w-[120px] block">
+                      {bin.location_name}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1 min-w-[100px]">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          {bin.fill_percentage}%
+                        </span>
+                        <span className="text-muted-foreground">
+                          {Math.round(bin.overflow_probability * 100)}% prob
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${fillColor(bin.fillLevel)}`}
-                          style={{ width: `${bin.fillLevel}%` }}
+                          className={`h-full rounded-full transition-all ${fillColor(bin.fill_percentage)}`}
+                          style={{ width: `${bin.fill_percentage}%` }}
                         />
                       </div>
-                      <span className="text-xs font-medium tabular-nums w-[36px] text-right">
-                        {bin.fillLevel}%
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs">{bin.waste_type}</span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1 text-xs">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span className="font-medium">
+                        {bin.predicted_full_hours < 2
+                          ? `${Math.round(bin.predicted_full_hours * 60)}m`
+                          : `${bin.predicted_full_hours}h`}
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {bin.wasteType}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {bin.predictedFullHours}h
-                    </div>
-                  </TableCell>
-                  <TableCell>{priorityBadge(bin.priorityScore)}</TableCell>
+                  <TableCell>{priorityBadge(bin.priority_score)}</TableCell>
                   <TableCell className="pr-6 text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs gap-1"
-                    >
-                      <Truck className="h-3 w-3" />
-                      Collect
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      {onFocusBin && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => onFocusBin(bin.bin_id)}
+                        >
+                          <MapPin className="h-3 w-3 mr-1" />
+                          Map
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                      >
+                        <Truck className="h-3 w-3 mr-1" />
+                        Collect
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

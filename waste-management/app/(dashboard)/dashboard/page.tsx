@@ -8,10 +8,11 @@ import { AlertsPanel } from "@/components/dashboard/alerts-panel";
 import { WasteGenerationChart } from "@/components/dashboard/waste-generation-chart";
 import { WasteCompositionChart } from "@/components/dashboard/waste-composition-chart";
 import { LiveIndicator } from "@/components/dashboard/live-indicator";
-import { useLiveData } from "@/components/providers/live-data-provider";
+import { DemoIndicator } from "@/components/dashboard/demo-indicator";
+import { useAppData } from "@/components/providers/app-data-provider";
 
 export default function DashboardPage() {
-  const { bins } = useLiveData();
+  const { bins, vehicles } = useAppData();
 
   return (
     <>
@@ -21,14 +22,15 @@ export default function DashboardPage() {
       />
 
       <div className="space-y-6 p-6">
-        {/* Live status */}
-        <div className="flex items-center justify-between">
+        {/* Live status + Demo indicator */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Overview
-            </h2>
+            <h2 className="text-sm font-medium text-muted-foreground">Overview</h2>
           </div>
-          <LiveIndicator />
+          <div className="flex items-center gap-3">
+            <DemoIndicator />
+            <LiveIndicator />
+          </div>
         </div>
 
         {/* KPI Cards */}
@@ -42,11 +44,11 @@ export default function DashboardPage() {
                 Smart Bin Network
               </h3>
               <p className="text-xs text-muted-foreground">
-                {bins.length} bins across Ahmedabad — color-coded by fill level
+                {bins.length} bins · {vehicles.filter(v => v.status !== "offline" && v.status !== "maintenance").length} vehicles active — color-coded by fill level
               </p>
             </div>
           </div>
-          <DynamicMap bins={bins} />
+          <DynamicMap dbBins={bins} vehicles={vehicles} height={480} />
         </section>
 
         {/* Collection Priority + Alerts — two columns on desktop */}

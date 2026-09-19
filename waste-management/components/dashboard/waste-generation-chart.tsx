@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   LineChart,
   Line,
@@ -11,18 +12,56 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { wasteGenerationData } from "@/lib/mock-data";
+import { getWasteHistory } from "@/lib/supabase/queries";
+import { useAppData } from "@/components/providers/app-data-provider";
 
 const lineColors: Record<string, string> = {
-  plastic: "#0ea5e9",
-  paper: "#f59e0b",
-  metal: "#8b5cf6",
-  glass: "#ec4899",
-  organic: "#16a34a",
-  other: "#6b7280",
+  Plastic: "#0ea5e9",
+  Paper: "#f59e0b",
+  Metal: "#8b5cf6",
+  Glass: "#ec4899",
+  Organic: "#16a34a",
+  Other: "#6b7280",
 };
 
 export function WasteGenerationChart() {
+  const { isLive } = useAppData();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [data, setData] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadData() {
+      const history = await getWasteHistory(undefined, 10);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const daysMap = new Map<string, any>();
+      history.forEach((record) => {
+        const date = new Date(record.recorded_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        if (!daysMap.has(date)) {
+          daysMap.set(date, { date, Plastic: 0, Paper: 0, Metal: 0, Glass: 0, Organic: 0, Other: 0 });
+        }
+        const dayData = daysMap.get(date)!;
+        // Group e-waste into other for cleaner graph
+        const cat = record.waste_type === "E-Waste" ? "Other" : record.waste_type;
+        dayData[cat] = (dayData[cat] || 0) + record.weight_kg;
+      });
+
+      const chartData = Array.from(daysMap.values())
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .map(d => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rounded: any = { date: d.date as string };
+          Object.keys(lineColors).forEach(type => {
+            rounded[type] = Math.round(d[type] || 0);
+          });
+          return rounded;
+        });
+
+      setData(chartData);
+    }
+    loadData();
+  }, [isLive]);
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -37,7 +76,7 @@ export function WasteGenerationChart() {
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={wasteGenerationData}
+              data={data}
               margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
             >
               <CartesianGrid
@@ -79,7 +118,7 @@ export function WasteGenerationChart() {
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 4, strokeWidth: 0 }}
-                  name={key.charAt(0).toUpperCase() + key.slice(1)}
+                  name={key}
                 />
               ))}
             </LineChart>

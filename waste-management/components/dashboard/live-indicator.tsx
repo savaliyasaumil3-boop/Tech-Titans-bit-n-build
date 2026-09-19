@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useLiveData } from "@/components/providers/live-data-provider";
+import { useAppData } from "@/components/providers/app-data-provider";
 import { Button } from "@/components/ui/button";
 import { WifiOff } from "lucide-react";
 
 export function LiveIndicator() {
-  const { lastUpdated, isLive, setIsLive } = useLiveData();
+  const { lastUpdated, isLive, setIsLive } = useAppData();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

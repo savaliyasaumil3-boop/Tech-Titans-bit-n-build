@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { SmartBin, BinStatus, WasteType } from "@/lib/types";
+import type { BinStatus, WasteType } from "@/lib/types";
+import type { DbBin } from "@/lib/db-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +17,7 @@ import { Clock, Eye, Truck } from "lucide-react";
 import { BinDetailsDrawer } from "./bin-details-drawer";
 
 interface BinsTableProps {
-  bins: SmartBin[];
+  bins: DbBin[];
   search: string;
   statusFilter: BinStatus | "all";
   wasteTypeFilter: WasteType | "all";
@@ -57,7 +58,7 @@ export function BinsTable({
   statusFilter,
   wasteTypeFilter,
 }: BinsTableProps) {
-  const [selectedBin, setSelectedBin] = useState<SmartBin | null>(null);
+  const [selectedBin, setSelectedBin] = useState<DbBin | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const filtered = useMemo(() => {
@@ -65,20 +66,19 @@ export function BinsTable({
       const matchesSearch =
         search === "" ||
         bin.id.toLowerCase().includes(search.toLowerCase()) ||
-        bin.locationName.toLowerCase().includes(search.toLowerCase()) ||
-        bin.area.toLowerCase().includes(search.toLowerCase());
+        bin.location_name.toLowerCase().includes(search.toLowerCase());
 
       const matchesStatus =
         statusFilter === "all" || bin.status === statusFilter;
 
       const matchesType =
-        wasteTypeFilter === "all" || bin.wasteType === wasteTypeFilter;
+        wasteTypeFilter === "all" || bin.waste_type === wasteTypeFilter;
 
       return matchesSearch && matchesStatus && matchesType;
     });
   }, [bins, search, statusFilter, wasteTypeFilter]);
 
-  function openDetails(bin: SmartBin) {
+  function openDetails(bin: DbBin) {
     setSelectedBin(bin);
     setDrawerOpen(true);
   }
@@ -125,10 +125,7 @@ export function BinsTable({
                   <TableCell>
                     <div>
                       <p className="font-medium text-sm">
-                        {bin.locationName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {bin.area}
+                        {bin.location_name}
                       </p>
                     </div>
                   </TableCell>
@@ -136,28 +133,28 @@ export function BinsTable({
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${fillColor(bin.fillLevel)}`}
-                          style={{ width: `${bin.fillLevel}%` }}
+                          className={`h-full rounded-full transition-all duration-500 ${fillColor(bin.fill_percentage)}`}
+                          style={{ width: `${bin.fill_percentage}%` }}
                         />
                       </div>
                       <span className="text-xs font-medium tabular-nums w-[36px] text-right">
-                        {bin.fillLevel}%
+                        {bin.fill_percentage}%
                       </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {bin.capacity}L
+                    {bin.capacity_kg}kg
                   </TableCell>
-                  <TableCell className="text-xs">{bin.wasteType}</TableCell>
+                  <TableCell className="text-xs">{bin.waste_type}</TableCell>
                   <TableCell>{statusBadge(bin.status)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      {bin.predictedFullHours}h
+                      {bin.predicted_full_hours}h
                     </div>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground" suppressHydrationWarning>
-                    {new Date(bin.lastUpdated).toLocaleTimeString([], {
+                    {new Date(bin.last_updated).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}

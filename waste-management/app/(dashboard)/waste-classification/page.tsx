@@ -6,10 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Recycle,
   Sparkles,
   CheckCircle2,
-  AlertTriangle,
   Upload,
   Camera,
   Layers,

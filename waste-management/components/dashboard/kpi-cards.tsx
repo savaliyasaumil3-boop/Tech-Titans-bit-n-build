@@ -9,8 +9,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useLiveData } from "@/components/providers/live-data-provider";
-import { vehicles } from "@/lib/mock-data";
+import { useAppData } from "@/components/providers/app-data-provider";
 
 interface KPI {
   label: string;
@@ -23,13 +22,16 @@ interface KPI {
 }
 
 export function KPICards() {
-  const { bins } = useLiveData();
+  const { bins, vehicles } = useAppData();
 
   const criticalCount = bins.filter((b) => b.status === "critical").length;
-  const activeVehicles = vehicles.filter((v) => v.status === "active").length;
-  const totalCollected = vehicles
-    .reduce((sum, v) => sum + v.currentLoad, 0)
-    .toFixed(1);
+  const activeVehicles = vehicles.filter(
+    (v) => v.status === "collecting" || v.status === "available"
+  ).length;
+  const totalCollectedKg = vehicles
+    .filter(v => v.status !== "maintenance" && v.status !== "offline")
+    .reduce((sum, v) => sum + v.current_load_kg, 0);
+  const totalCollectedTons = (totalCollectedKg / 1000).toFixed(1);
 
   const kpis: KPI[] = [
     {
@@ -59,7 +61,7 @@ export function KPICards() {
     },
     {
       label: "Waste Collected",
-      value: `${totalCollected}t`,
+      value: `${totalCollectedTons}t`,
       subtitle: "Today's collections",
       trend: 4.2,
       trendLabel: "vs yesterday",
@@ -80,38 +82,32 @@ export function KPICards() {
                 <p className={`text-3xl font-bold tracking-tight ${kpi.accent || "text-foreground"}`}>
                   {kpi.value}
                 </p>
-                <p className="text-sm text-muted-foreground">{kpi.subtitle}</p>
+                <p className="text-xs text-muted-foreground">{kpi.subtitle}</p>
               </div>
-              <div className="rounded-lg bg-muted p-2.5">{kpi.icon}</div>
+              <div className="p-2 rounded-lg bg-muted/50">{kpi.icon}</div>
             </div>
 
-            {kpi.trend !== 0 && (
-              <div className="mt-3 flex items-center gap-1.5 text-xs">
-                {kpi.trend > 0 ? (
-                  <TrendingUp className="h-3.5 w-3.5 text-status-healthy" />
-                ) : (
-                  <TrendingDown className="h-3.5 w-3.5 text-status-critical" />
-                )}
-                <span
-                  className={
-                    kpi.trend > 0
-                      ? "font-medium text-status-healthy"
-                      : "font-medium text-status-critical"
-                  }
-                >
-                  {kpi.trend > 0 ? "+" : ""}
-                  {kpi.trend}%
-                </span>
-                <span className="text-muted-foreground">{kpi.trendLabel}</span>
-              </div>
-            )}
-
-            {kpi.trend === 0 && (
-              <div className="mt-3 flex items-center gap-1.5 text-xs">
-                <div className="h-1.5 w-1.5 rounded-full bg-status-healthy" />
-                <span className="text-muted-foreground">{kpi.trendLabel}</span>
-              </div>
-            )}
+            <div className="mt-4 flex items-center gap-1.5">
+              {kpi.trend > 0 ? (
+                <TrendingUp className="h-3.5 w-3.5 text-green-500" />
+              ) : kpi.trend < 0 ? (
+                <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+              ) : null}
+              <span
+                className={`text-xs font-medium ${
+                  kpi.trend > 0
+                    ? "text-green-500"
+                    : kpi.trend < 0
+                    ? "text-red-500"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {kpi.trend !== 0
+                  ? `${kpi.trend > 0 ? "+" : ""}${kpi.trend}%`
+                  : "—"}{" "}
+                {kpi.trendLabel}
+              </span>
+            </div>
           </CardContent>
         </Card>
       ))}

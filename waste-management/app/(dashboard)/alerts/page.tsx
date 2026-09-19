@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { Header } from "@/components/layout/header";
-import { alerts as initialAlerts } from "@/lib/mock-data";
-import type { Alert, AlertSeverity, AlertType } from "@/lib/types";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useAppData } from "@/components/providers/app-data-provider";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,280 +15,237 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Bell,
   AlertTriangle,
-  Flame,
-  CheckCircle2,
+  Bell,
   Info,
-  Clock,
   Search,
-  Check,
-  RotateCcw,
-  Trash2,
+  Settings,
+  TrendingUp,
+  Truck,
+  CheckCircle2,
+  Filter,
 } from "lucide-react";
+import type { DbAlert } from "@/lib/db-types";
 
-function severityBadge(severity: AlertSeverity) {
-  switch (severity) {
-    case "critical":
-      return (
-        <Badge className="bg-red-500/10 text-red-600 border-red-200 text-[11px] font-semibold">
-          Critical
-        </Badge>
-      );
-    case "high":
-      return (
-        <Badge className="bg-amber-500/10 text-amber-600 border-amber-200 text-[11px] font-semibold">
-          High
-        </Badge>
-      );
-    case "medium":
-      return (
-        <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-200 text-[11px] font-medium">
-          Medium
-        </Badge>
-      );
-    case "low":
-      return (
-        <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-[11px] font-medium">
-          Low
-        </Badge>
-      );
+function typeIcon(type: string) {
+  switch (type) {
+    case "overflow":
+      return <AlertTriangle className="h-4 w-4 text-red-500" />;
+    case "high_generation":
+      return <TrendingUp className="h-4 w-4 text-amber-500" />;
+    case "vehicle":
+      return <Truck className="h-4 w-4 text-blue-500" />;
+    case "system":
+      return <Settings className="h-4 w-4 text-blue-400" />;
+    default:
+      return <Bell className="h-4 w-4 text-muted-foreground" />;
   }
 }
 
+function severityBadge(severity: string) {
+  switch (severity) {
+    case "critical":
+      return <Badge className="bg-red-500/10 text-red-600 border-red-200 text-[11px]">🔴 Critical</Badge>;
+    case "warning":
+      return <Badge className="bg-amber-500/10 text-amber-600 border-amber-200 text-[11px]">🟡 Warning</Badge>;
+    default:
+      return <Badge className="bg-blue-500/10 text-blue-600 border-blue-200 text-[11px]">🔵 Info</Badge>;
+  }
+}
+
+function timeAgo(timestamp: string) {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hours ago`;
+  return `${Math.floor(hours / 24)} days ago`;
+}
+
 export default function AlertsPage() {
-  const [alertsList, setAlertsList] = useState<Alert[]>(initialAlerts);
+  const { alerts, resolveAlert } = useAppData();
   const [search, setSearch] = useState("");
-  const [severityFilter, setSeverityFilter] = useState<AlertSeverity | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "resolved">("all");
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("unread");
 
-  const totalAlerts = alertsList.length;
-  const activeAlerts = alertsList.filter((a) => !a.resolved);
-  const criticalCount = activeAlerts.filter((a) => a.severity === "critical").length;
-
-  const toggleResolve = (id: string) => {
-    setAlertsList((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, resolved: !a.resolved } : a))
-    );
-  };
-
-  const markAllResolved = () => {
-    setAlertsList((prev) => prev.map((a) => ({ ...a, resolved: true })));
-  };
-
-  const filtered = alertsList.filter((a) => {
-    const matchesSearch =
-      search === "" ||
-      a.id.toLowerCase().includes(search.toLowerCase()) ||
-      a.message.toLowerCase().includes(search.toLowerCase()) ||
-      (a.binId && a.binId.toLowerCase().includes(search.toLowerCase()));
-
-    const matchesSeverity = severityFilter === "all" || a.severity === severityFilter;
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && !a.resolved) ||
-      (statusFilter === "resolved" && a.resolved);
-
-    return matchesSearch && matchesSeverity && matchesStatus;
+  const filtered = alerts.filter((a) => {
+    if (search && !a.message.toLowerCase().includes(search.toLowerCase())) return false;
+    if (severityFilter !== "all" && a.severity !== severityFilter) return false;
+    if (typeFilter !== "all" && a.type !== typeFilter) return false;
+    if (statusFilter === "unread" && a.is_read) return false;
+    if (statusFilter === "read" && !a.is_read) return false;
+    return true;
   });
+
+  const sorted = [...filtered].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  const criticalCount = alerts.filter((a) => a.severity === "critical" && !a.is_read).length;
+  const warningCount = alerts.filter((a) => a.severity === "warning" && !a.is_read).length;
+  const infoCount = alerts.filter((a) => a.severity === "info" && !a.is_read).length;
+
+  function resolveAll() {
+    alerts.filter((a) => !a.is_read).forEach((a) => resolveAlert(a.id));
+  }
 
   return (
     <>
       <Header
-        title="Alerts & System Incidents"
-        subtitle="Real-time threshold triggers, hardware malfunctions, and emergency collection requests"
+        title="Alert Center"
+        subtitle="Real-time system alerts and notifications"
       />
 
       <div className="space-y-6 p-6">
-        {/* Top Summary Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="shadow-none">
+        {/* Summary cards */}
+        <div className="grid grid-cols-3 gap-4">
+          <Card className="border-red-200 bg-red-50/50 dark:bg-red-950/20">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-                <Bell className="h-5 w-5" />
-              </div>
+              <AlertTriangle className="h-8 w-8 text-red-500" />
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Active Incidents</p>
-                <p className="text-xl font-bold tracking-tight">{activeAlerts.length}</p>
-                <p className="text-[11px] text-muted-foreground">Across smart network</p>
+                <p className="text-2xl font-bold text-red-600">{criticalCount}</p>
+                <p className="text-xs text-red-500 font-medium">Critical</p>
               </div>
             </CardContent>
           </Card>
-
-          <Card className="shadow-none">
+          <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-red-500/10 text-red-600">
-                <Flame className="h-5 w-5" />
-              </div>
+              <Bell className="h-8 w-8 text-amber-500" />
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Critical Overflow Alerts</p>
-                <p className="text-xl font-bold tracking-tight text-red-600">{criticalCount}</p>
-                <p className="text-[11px] text-muted-foreground">Immediate dispatch recommended</p>
+                <p className="text-2xl font-bold text-amber-600">{warningCount}</p>
+                <p className="text-xs text-amber-500 font-medium">Warning</p>
               </div>
             </CardContent>
           </Card>
-
-          <Card className="shadow-none">
+          <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-green-500/10 text-green-600">
-                <CheckCircle2 className="h-5 w-5" />
-              </div>
+              <Info className="h-8 w-8 text-blue-500" />
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Resolved Today</p>
-                <p className="text-xl font-bold tracking-tight text-green-600">
-                  {alertsList.filter((a) => a.resolved).length}
-                </p>
-                <p className="text-[11px] text-muted-foreground">Avg response time: 14 mins</p>
+                <p className="text-2xl font-bold text-blue-600">{infoCount}</p>
+                <p className="text-xs text-blue-500 font-medium">Info</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filters and Actions */}
-        <Card className="p-4 shadow-none">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex flex-1 flex-col sm:flex-row gap-3 w-full">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <CardTitle className="text-base font-semibold">All Alerts</CardTitle>
+              <Button size="sm" variant="outline" onClick={resolveAll} className="text-xs">
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                Resolve All
+              </Button>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search alert by ID, message, or bin ID…"
+                  placeholder="Search alerts…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 h-9 text-sm"
+                  className="pl-8 h-8 text-sm"
                 />
               </div>
-
-              <Select
-                value={severityFilter}
-                onValueChange={(v) => setSeverityFilter(v as AlertSeverity | "all")}
-              >
-                <SelectTrigger className="w-[150px] h-9 text-sm">
-                  <SelectValue placeholder="All Severities" />
+              <Select value={severityFilter} onValueChange={(val) => val && setSeverityFilter(val)}>
+                <SelectTrigger className="w-[120px] h-8 text-xs">
+                  <SelectValue placeholder="Severity" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Severities</SelectItem>
+                  <SelectItem value="all">All Severity</SelectItem>
                   <SelectItem value="critical">Critical</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
                 </SelectContent>
               </Select>
-
-              <Select
-                value={statusFilter}
-                onValueChange={(v) => setStatusFilter(v as "all" | "active" | "resolved")}
-              >
-                <SelectTrigger className="w-[140px] h-9 text-sm">
-                  <SelectValue placeholder="All Status" />
+              <Select value={typeFilter} onValueChange={(val) => val && setTypeFilter(val)}>
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active Only</SelectItem>
-                  <SelectItem value="resolved">Resolved Only</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="overflow">Overflow</SelectItem>
+                  <SelectItem value="high_generation">High Generation</SelectItem>
+                  <SelectItem value="vehicle">Vehicle</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={(val) => val && setStatusFilter(val)}>
+                <SelectTrigger className="w-[100px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="unread">Unread</SelectItem>
+                  <SelectItem value="read">Dismissed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </CardHeader>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={markAllResolved}
-              className="text-xs shrink-0 gap-1.5"
-            >
-              <Check className="h-3.5 w-3.5" />
-              Resolve All Active
-            </Button>
-          </div>
-        </Card>
-
-        {/* Alerts List */}
-        <div className="space-y-3">
-          {filtered.length === 0 ? (
-            <Card className="p-12 text-center text-muted-foreground shadow-none">
-              No incidents or alerts match your active filter.
-            </Card>
-          ) : (
-            filtered.map((alert) => (
-              <div
-                key={alert.id}
-                className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-                  alert.resolved
-                    ? "bg-muted/20 border-border opacity-70"
-                    : alert.severity === "critical"
-                    ? "bg-red-500/5 border-red-200 ring-1 ring-red-500/10"
-                    : alert.severity === "high"
-                    ? "bg-amber-500/5 border-amber-200 ring-1 ring-amber-500/10"
-                    : "bg-card border-border"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5">
-                    {alert.resolved ? (
-                      <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
-                    ) : alert.severity === "critical" ? (
-                      <Flame className="h-5 w-5 text-red-600" />
-                    ) : alert.severity === "high" ? (
-                      <AlertTriangle className="h-5 w-5 text-amber-600" />
-                    ) : (
-                      <Info className="h-5 w-5 text-blue-600" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-muted">
-                        {alert.id}
-                      </span>
-                      {alert.binId && (
-                        <span className="font-mono text-xs text-primary font-medium">
-                          {alert.binId}
-                        </span>
-                      )}
-                      {severityBadge(alert.severity)}
-                      <span className="text-xs text-muted-foreground uppercase font-semibold">
-                        Type: {alert.type}
-                      </span>
-                    </div>
-                    <p
-                      className={`text-sm mt-1.5 font-medium ${
-                        alert.resolved ? "line-through text-muted-foreground" : "text-foreground"
-                      }`}
-                    >
-                      {alert.message}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1" suppressHydrationWarning>
-                      <Clock className="h-3 w-3" />
-                      <span suppressHydrationWarning>{new Date(alert.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}</span>
-                      <span>·</span>
-                      <span suppressHydrationWarning>{new Date(alert.timestamp).toLocaleDateString()}</span>
-                    </div>
-                  </div>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {sorted.length === 0 ? (
+                <div className="py-16 text-center text-muted-foreground">
+                  <Bell className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No alerts match your filters</p>
                 </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <Button
-                    size="sm"
-                    variant={alert.resolved ? "ghost" : "outline"}
-                    className="h-8 text-xs gap-1.5"
-                    onClick={() => toggleResolve(alert.id)}
+              ) : (
+                sorted.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`flex items-start gap-4 px-6 py-4 hover:bg-muted/30 transition-colors ${
+                      alert.is_read ? "opacity-50" : ""
+                    }`}
                   >
-                    {alert.resolved ? (
-                      <>
-                        <RotateCcw className="h-3 w-3" /> Re-open
-                      </>
+                    <div className="mt-0.5 shrink-0">{typeIcon(alert.type)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-snug">{alert.message}</p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {severityBadge(alert.severity)}
+                        <Badge variant="outline" className="text-[11px] capitalize">
+                          {alert.type.replace("_", " ")}
+                        </Badge>
+                        {alert.bin_id && (
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {alert.bin_id}
+                          </span>
+                        )}
+                        {alert.vehicle_id && (
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {alert.vehicle_id}
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {timeAgo(alert.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                    {!alert.is_read ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs shrink-0"
+                        onClick={() => resolveAlert(alert.id)}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                        Resolve
+                      </Button>
                     ) : (
-                      <>
-                        <Check className="h-3 w-3" /> Mark Resolved
-                      </>
+                      <Badge variant="outline" className="text-[11px] text-green-600 border-green-200 bg-green-50 shrink-0">
+                        Resolved
+                      </Badge>
                     )}
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </>
   );
