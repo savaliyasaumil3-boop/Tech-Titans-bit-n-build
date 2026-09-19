@@ -12,17 +12,17 @@ interface SmartBinControlsProps {
 }
 
 const CAMERA_POSITIONS: Record<InspectionAngle, [number, number, number]> = {
-  front: [0, 0.8, 2.2],
-  side: [2.2, 0.8, 0],
-  top: [0, 3.0, 0.1],
-  inside: [0, 1.4, 0.6],
+  front: [0, 1.1, 3.8],
+  side: [3.8, 1.1, 0],
+  top: [0, 4.2, 0.2],
+  inside: [0, 1.0, 2.9],
 };
 
 const CAMERA_TARGETS: Record<InspectionAngle, [number, number, number]> = {
-  front: [0, 0.5, 0],
-  side: [0, 0.5, 0],
-  top: [0, 0.5, 0],
-  inside: [0, 0.4, 0],
+  front: [0, 0.68, 0],
+  side: [0, 0.68, 0],
+  top: [0, 0.68, 0],
+  inside: [0, 0.50, 0],
 };
 
 export function SmartBinControls({ activeAngle }: SmartBinControlsProps) {
@@ -51,10 +51,10 @@ export function SmartBinControls({ activeAngle }: SmartBinControlsProps) {
       ref={controlsRef}
       enablePan={false}
       enableZoom={true}
-      minDistance={1.0}
-      maxDistance={4.5}
+      minDistance={1.8}
+      maxDistance={6.5}
       minPolarAngle={0.1}
-      maxPolarAngle={Math.PI / 2 + 0.1}
+      maxPolarAngle={Math.PI / 2 + 0.05}
       autoRotate={activeAngle === "front"}
       autoRotateSpeed={0.8}
     />

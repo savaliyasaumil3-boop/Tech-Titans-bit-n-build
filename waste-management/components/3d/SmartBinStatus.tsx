@@ -19,7 +19,7 @@ const STATUS_COLORS = {
 export function SmartBinStatus({
   status,
   fillLevel,
-  binHeight = 1.1,
+  binHeight = 1.32,
 }: SmartBinStatusProps) {
   const ledRef = useRef<THREE.Mesh>(null);
   const ringRef = useRef<THREE.Mesh>(null);
@@ -52,10 +52,10 @@ export function SmartBinStatus({
       {/* Front Panel Smart Sensor LED Indicator */}
       <mesh
         ref={ledRef}
-        position={[0, binHeight * 0.88, 0.31]}
+        position={[0, binHeight * 0.86, 0.40]}
         castShadow={false}
       >
-        <sphereGeometry args={[0.035, 16, 16]} />
+        <sphereGeometry args={[0.04, 16, 16]} />
         <meshStandardMaterial
           color={activeColor}
           emissive={activeColor}
@@ -66,27 +66,13 @@ export function SmartBinStatus({
 
       {/* Point Light emitted from Status LED */}
       <pointLight
-        position={[0, binHeight * 0.88, 0.35]}
+        position={[0, binHeight * 0.86, 0.44]}
         color={activeColor}
         intensity={status === "critical" ? 2.5 : 1.2}
-        distance={1.2}
+        distance={1.4}
       />
 
-      {/* Ultrasonic Sensor Beam (pointing down inside bin) */}
-      <mesh
-        ref={beamRef}
-        position={[0, binHeight * 0.85, 0]}
-        rotation={[Math.PI, 0, 0]}
-      >
-        <coneGeometry args={[0.22, binHeight * (1 - fillLevel / 100), 16, 1, true]} />
-        <meshBasicMaterial
-          color={activeColor}
-          transparent
-          opacity={0.25}
-          side={THREE.DoubleSide}
-          wireframe
-        />
-      </mesh>
+
 
       {/* Ground Holographic Status Risk Ring */}
       <mesh
@@ -94,7 +80,7 @@ export function SmartBinStatus({
         position={[0, -0.01, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
       >
-        <ringGeometry args={[0.45, 0.55, 32]} />
+        <ringGeometry args={[0.65, 0.78, 32]} />
         <meshBasicMaterial
           color={activeColor}
           transparent

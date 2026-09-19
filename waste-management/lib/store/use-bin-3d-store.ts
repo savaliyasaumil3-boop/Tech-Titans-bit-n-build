@@ -50,7 +50,7 @@ export const useBin3DStore = create<Bin3DState>((set) => ({
   setActiveAngle: (angle: InspectionAngle) =>
     set({
       activeAngle: angle,
-      isLidOpen: angle === "top" || angle === "inside" ? true : false,
+      isLidOpen: angle === "top",
     }),
 
   toggleLid: () =>
