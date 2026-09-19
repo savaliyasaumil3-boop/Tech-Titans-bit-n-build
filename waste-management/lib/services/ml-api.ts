@@ -24,7 +24,7 @@ export async function predictFill(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
-      signal: AbortSignal.timeout(3000), // 3s timeout
+      signal: AbortSignal.timeout(10000), // 10s timeout to allow cold starts
     });
     if (!res.ok) return null;
     return res.json();
@@ -41,6 +41,7 @@ interface OptimizeRouteRequest {
   vehicle_capacity_kg: number;
   bins: Array<{
     id: string;
+    location_name: string;
     latitude: number;
     longitude: number;
     required_collection_kg: number;

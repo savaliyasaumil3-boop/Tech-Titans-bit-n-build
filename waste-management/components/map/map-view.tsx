@@ -13,6 +13,8 @@ interface MapViewProps {
   vehicles?: DbVehicle[];
   activeRoute?: OptimizedRoute | null;
   focusedBinId?: string | null;
+  isSimulating?: boolean;
+  simulatingVehicleId?: string;
 }
 
 function FitBounds({ bins, dbBins }: { bins?: SmartBin[]; dbBins?: DbBin[] }) {
@@ -60,7 +62,7 @@ function dbBinToSmartBin(bin: DbBin): SmartBin {
 
 const DEPOT = { latitude: 23.0225, longitude: 72.5714, id: "DEPOT" };
 
-export function MapView({ bins, dbBins, vehicles, activeRoute, focusedBinId }: MapViewProps) {
+export function MapView({ bins, dbBins, vehicles, activeRoute, focusedBinId, isSimulating, simulatingVehicleId }: MapViewProps) {
   // Merge legacy bins and dbBins
   const allSmartBins: SmartBin[] = [
     ...(bins ?? []),
@@ -103,13 +105,19 @@ export function MapView({ bins, dbBins, vehicles, activeRoute, focusedBinId }: M
         ))}
 
         {/* Vehicle markers */}
-        {vehicles?.map((v) => (
-          <VehicleMarker key={v.id} vehicle={v} />
-        ))}
+        {vehicles?.map((v) => {
+          // Hide static marker if we are simulating this vehicle's route
+          if (isSimulating && v.id === simulatingVehicleId) return null;
+          return <VehicleMarker key={v.id} vehicle={v} />;
+        })}
 
         {/* Route polyline */}
         {activeRoute && routeWaypoints.length > 1 && (
-          <RoutePolyline waypoints={routeWaypoints} />
+          <RoutePolyline 
+            waypoints={routeWaypoints}
+            isSimulating={isSimulating}
+            activeVehicle={vehicles?.find(v => v.id === simulatingVehicleId)}
+          />
         )}
 
         {/* Route order markers */}

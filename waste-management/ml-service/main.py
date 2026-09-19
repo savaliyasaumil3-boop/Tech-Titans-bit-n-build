@@ -16,7 +16,7 @@ app = FastAPI(title="SwachhSetu ML Service")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -70,6 +70,7 @@ def predict_fill(req: PredictFillRequest):
 
 class BinStop(BaseModel):
     id: str
+    location_name: str
     latitude: float
     longitude: float
     required_collection_kg: float
@@ -165,7 +166,7 @@ def optimize_route(req: OptimizeRouteRequest):
 
         stops.append(RouteStopDef(
             id=nex.id,
-            name=nex.id,
+            name=nex.location_name,
             latitude=nex.latitude,
             longitude=nex.longitude,
             required_collection_kg=nex.required_collection_kg,

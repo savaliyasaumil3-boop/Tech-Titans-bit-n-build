@@ -34,7 +34,7 @@ export async function getBinById(id: string): Promise<DbBin | null> {
     .from("bins")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
   if (error) {
     console.error("getBinById error:", error);
     return demoBins.find((b) => b.id === id) ?? null;
@@ -56,7 +56,7 @@ export async function updateBin(
     .update({ ...updates, last_updated: new Date().toISOString() })
     .eq("id", id)
     .select()
-    .single();
+    .maybeSingle();
   if (error) {
     console.error("updateBin error:", error);
     return null;
@@ -85,7 +85,7 @@ export async function getVehicleById(id: string): Promise<DbVehicle | null> {
     .from("vehicles")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
   if (error) {
     console.error("getVehicleById error:", error);
     return demoVehicles.find((v) => v.id === id) ?? null;
@@ -189,7 +189,7 @@ export async function getPredictionForBin(
     .eq("bin_id", binId)
     .order("prediction_created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
   if (error) {
     console.error("getPredictionForBin error:", error);
     return demoPredictions.find((p) => p.bin_id === binId) ?? null;

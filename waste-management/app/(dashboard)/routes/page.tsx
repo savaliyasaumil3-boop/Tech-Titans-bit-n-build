@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, Route, Compass, Play, Square } from "lucide-react";
-import { fallbackOptimizeRoute } from "@/lib/services/ml-api";
+import { optimizeRoute, fallbackOptimizeRoute } from "@/lib/services/ml-api";
 import type { OptimizedRoute } from "@/lib/db-types";
 
 function timeFormat(minutes: number) {
@@ -41,8 +41,6 @@ export default function RoutesPage() {
       return;
     }
 
-    // Use ML service fallback for hackathon demonstration
-    // We need capacity_kg, so map from priorityBins using the full bins array
     const mappedBins = priorityBins.map(pb => {
       const dbBin = bins.find(b => b.id === pb.bin_id);
       return {
@@ -52,12 +50,30 @@ export default function RoutesPage() {
       };
     });
 
-    const route = fallbackOptimizeRoute(
-      vehicle.id,
-      vehicle.vehicle_number,
-      vehicle.capacity_kg - vehicle.current_load_kg, // Use remaining capacity
-      mappedBins
-    );
+    const payload = {
+      vehicle_id: vehicle.id,
+      vehicle_capacity_kg: vehicle.capacity_kg - vehicle.current_load_kg,
+      bins: mappedBins.map(b => ({
+        id: b.id,
+        location_name: b.location_name,
+        latitude: b.latitude,
+        longitude: b.longitude,
+        required_collection_kg: Math.round((b.fill_percentage / 100) * b.capacity_kg),
+        priority: b.priority_score
+      }))
+    };
+
+    let route = await optimizeRoute(payload);
+    
+    if (!route) {
+      console.warn("Python ML API unavailable or timed out, using fallback JS optimizer");
+      route = fallbackOptimizeRoute(
+        vehicle.id,
+        vehicle.vehicle_number,
+        vehicle.capacity_kg - vehicle.current_load_kg, // Use remaining capacity
+        mappedBins
+      );
+    }
 
     setActiveRoute(route);
     setIsOptimizing(false);
@@ -172,7 +188,7 @@ export default function RoutesPage() {
                           <div className="w-px h-full bg-border absolute left-1.5 top-2" />
                           <div className="h-3 w-3 rounded-full bg-blue-500 shrink-0 mt-1 relative z-10" />
                           <div className="flex-1">
-                            <span className="font-medium mr-2">{stop.id}</span>
+                            <span className="font-medium mr-2">{stop.name}</span>
                             <span className="text-muted-foreground text-xs">{stop.required_collection_kg}kg</span>
                           </div>
                         </div>
@@ -211,6 +227,8 @@ export default function RoutesPage() {
                   vehicles={vehicles}
                   activeRoute={activeRoute}
                   height="100%"
+                  isSimulating={isSimulating}
+                  simulatingVehicleId={activeRoute?.vehicle_id}
                 />
               </CardContent>
             </Card>

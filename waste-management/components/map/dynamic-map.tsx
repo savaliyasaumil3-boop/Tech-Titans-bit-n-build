@@ -26,9 +26,11 @@ interface DynamicMapProps {
   activeRoute?: OptimizedRoute | null;
   focusedBinId?: string | null;
   height?: number | string;
+  isSimulating?: boolean;
+  simulatingVehicleId?: string;
 }
 
-export function DynamicMap({ bins, dbBins, vehicles, activeRoute, focusedBinId, height = 450 }: DynamicMapProps) {
+export function DynamicMap({ bins, dbBins, vehicles, activeRoute, focusedBinId, height = 450, isSimulating, simulatingVehicleId }: DynamicMapProps) {
   return (
     <div style={{ height }} className="w-full">
       <MapView
@@ -37,6 +39,8 @@ export function DynamicMap({ bins, dbBins, vehicles, activeRoute, focusedBinId, 
         vehicles={vehicles}
         activeRoute={activeRoute}
         focusedBinId={focusedBinId}
+        isSimulating={isSimulating}
+        simulatingVehicleId={simulatingVehicleId}
       />
     </div>
   );

@@ -109,23 +109,91 @@ export function VehicleMarker({ vehicle }: VehicleMarkerProps) {
 
 // ─── Route Polyline ───────────────────────────────────────────────────────────
 
+import { useEffect, useState } from "react";
+
 interface RoutePolylineProps {
   waypoints: Array<{ latitude: number; longitude: number; id: string }>;
+  isSimulating?: boolean;
+  activeVehicle?: DbVehicle;
 }
 
-export function RoutePolyline({ waypoints }: RoutePolylineProps) {
-  const positions = waypoints.map((w) => [w.latitude, w.longitude] as [number, number]);
+export function RoutePolyline({ waypoints, isSimulating, activeVehicle }: RoutePolylineProps) {
+  const [positions, setPositions] = useState<[number, number][]>([]);
+  const [simIndex, setSimIndex] = useState(0);
+
+  useEffect(() => {
+    if (waypoints.length < 2) {
+      setPositions([]);
+      return;
+    }
+
+    const fetchRoute = async () => {
+      try {
+        const coords = waypoints.map(w => `${w.longitude},${w.latitude}`).join(';');
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+        
+        if (!res.ok) throw new Error("OSRM routing failed");
+        
+        const data = await res.json();
+        if (data.routes && data.routes[0]) {
+          const coordinates = data.routes[0].geometry.coordinates;
+          // OSRM returns [longitude, latitude], Leaflet Polyline expects [latitude, longitude]
+          setPositions(coordinates.map((c: [number, number]) => [c[1], c[0]]));
+        } else {
+          setPositions(waypoints.map((w) => [w.latitude, w.longitude] as [number, number]));
+        }
+      } catch (err) {
+        console.error("Failed to fetch road route:", err);
+        // Fallback to straight lines if API fails
+        setPositions(waypoints.map((w) => [w.latitude, w.longitude] as [number, number]));
+      }
+    };
+
+    fetchRoute();
+  }, [waypoints]);
+
+  // Simulation animation loop
+  useEffect(() => {
+    if (!isSimulating || positions.length === 0) {
+      setSimIndex(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setSimIndex((prev) => {
+        if (prev >= positions.length - 1) {
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 80); // Move every 80ms
+
+    return () => clearInterval(interval);
+  }, [isSimulating, positions]);
+
+  if (positions.length === 0) return null;
 
   return (
-    <Polyline
-      positions={positions}
-      pathOptions={{
-        color: "#3b82f6",
-        weight: 3,
-        opacity: 0.8,
-        dashArray: "8 4",
-      }}
-    />
+    <>
+      <Polyline
+        positions={positions}
+        pathOptions={{
+          color: "#3b82f6",
+          weight: 4,
+          opacity: 0.8,
+        }}
+      />
+      
+      {/* Moving vehicle marker during simulation */}
+      {isSimulating && activeVehicle && positions[simIndex] && (
+        <Marker 
+          position={positions[simIndex]} 
+          icon={createVehicleIcon(activeVehicle.status)}
+          zIndexOffset={1000}
+        />
+      )}
+    </>
   );
 }
 
