@@ -7,6 +7,7 @@ import {
   Weight,
   TrendingUp,
   TrendingDown,
+  Leaf,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAppData } from "@/components/providers/app-data-provider";
@@ -19,7 +20,19 @@ interface KPI {
   trendLabel: string;
   icon: React.ReactNode;
   accent?: string;
+  pulse?: boolean;
 }
+
+// CO₂ offset factors per kg recycled (kg CO₂ saved per kg material)
+const CO2_FACTORS: Record<string, number> = {
+  Plastic: 1.5,
+  Metal: 9.0,
+  Paper: 1.0,
+  Glass: 0.3,
+  Organic: 0.5,
+  "E-Waste": 2.0,
+  Other: 0.2,
+};
 
 export function KPICards() {
   const { bins, vehicles } = useAppData();
@@ -32,6 +45,13 @@ export function KPICards() {
     .filter(v => v.status !== "maintenance" && v.status !== "offline")
     .reduce((sum, v) => sum + v.current_load_kg, 0);
   const totalCollectedTons = (totalCollectedKg / 1000).toFixed(1);
+
+  // CO₂ prevented: estimate from current bin composition × 92% collection efficiency
+  const co2Prevented = bins.reduce((sum, bin) => {
+    const factor = CO2_FACTORS[bin.waste_type] ?? 0.5;
+    const collectedKg = bin.current_fill_kg * 0.92;
+    return sum + collectedKg * factor;
+  }, 0);
 
   const kpis: KPI[] = [
     {
@@ -50,6 +70,7 @@ export function KPICards() {
       trendLabel: "vs yesterday",
       icon: <AlertTriangle className="h-5 w-5 text-status-critical" />,
       accent: "text-status-critical",
+      pulse: criticalCount > 0,
     },
     {
       label: "Active Vehicles",
@@ -62,15 +83,24 @@ export function KPICards() {
     {
       label: "Waste Collected",
       value: `${totalCollectedTons}t`,
-      subtitle: "Today's collections",
+      subtitle: "Today's vehicle payloads",
       trend: 4.2,
       trendLabel: "vs yesterday",
       icon: <Weight className="h-5 w-5 text-brand" />,
     },
+    {
+      label: "CO₂ Prevented",
+      value: `${(co2Prevented / 1000).toFixed(2)}t`,
+      subtitle: "Estimated carbon offset today",
+      trend: 6.8,
+      trendLabel: "vs last week",
+      icon: <Leaf className="h-5 w-5 text-green-600" />,
+      accent: "text-green-600",
+    },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
       {kpis.map((kpi) => (
         <Card key={kpi.label} className="relative overflow-hidden">
           <CardContent className="p-5">
@@ -79,7 +109,7 @@ export function KPICards() {
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   {kpi.label}
                 </p>
-                <p className={`text-3xl font-bold tracking-tight ${kpi.accent || "text-foreground"}`}>
+                <p className={`text-3xl font-bold tracking-tight ${kpi.accent || "text-foreground"} ${kpi.pulse ? "animate-pulse" : ""}`}>
                   {kpi.value}
                 </p>
                 <p className="text-xs text-muted-foreground">{kpi.subtitle}</p>

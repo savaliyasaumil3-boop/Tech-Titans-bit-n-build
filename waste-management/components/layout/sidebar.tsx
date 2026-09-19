@@ -13,7 +13,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
- 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,6 +24,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useAppData } from "@/components/providers/app-data-provider";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -44,6 +44,8 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const { alerts } = useAppData();
+  const unreadAlerts = alerts.filter((a) => !a.is_read).length;
 
   return (
     <aside
@@ -79,26 +81,40 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 ? pathname === "/dashboard"
                 : pathname.startsWith(href);
 
+            const isAlerts = href === "/alerts";
+            const showBadge = isAlerts && unreadAlerts > 0;
+
             const linkEl = (
               <Link
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors relative",
                   collapsed && "justify-center px-0 w-10 mx-auto",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-primary border-l-2 border-sidebar-primary rounded-l-none"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                 )}
               >
-                <Icon
-                  className={cn(
-                    "shrink-0",
-                    collapsed ? "h-5 w-5" : "h-4 w-4",
-                    isActive && "text-sidebar-primary"
+                <span className="relative shrink-0">
+                  <Icon
+                    className={cn(
+                      collapsed ? "h-5 w-5" : "h-4 w-4",
+                      isActive && "text-sidebar-primary"
+                    )}
+                  />
+                  {collapsed && showBadge && (
+                    <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
+                      {unreadAlerts > 9 ? "9+" : unreadAlerts}
+                    </span>
                   )}
-                />
-                {!collapsed && <span>{label}</span>}
+                </span>
+                {!collapsed && <span className="flex-1">{label}</span>}
+                {!collapsed && showBadge && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white px-1">
+                    {unreadAlerts > 9 ? "9+" : unreadAlerts}
+                  </span>
+                )}
               </Link>
             );
 
@@ -106,7 +122,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               return (
                 <Tooltip key={href}>
                   <TooltipTrigger render={linkEl} />
-                  <TooltipContent side="right">{label}</TooltipContent>
+                  <TooltipContent side="right">{label}{isAlerts && unreadAlerts > 0 ? ` (${unreadAlerts})` : ""}</TooltipContent>
                 </Tooltip>
               );
             }
@@ -115,6 +131,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           })}
         </nav>
       </ScrollArea>
+
 
       <Separator className="bg-sidebar-border" />
 

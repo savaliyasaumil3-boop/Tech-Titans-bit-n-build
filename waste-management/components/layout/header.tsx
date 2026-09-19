@@ -1,9 +1,11 @@
 "use client";
 
-import { Search, Bell, User, Settings, LogOut } from "lucide-react";
+import { Search, Bell, User, Settings, LogOut, Moon, Sun } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAppData } from "@/components/providers/app-data-provider";
 
 interface HeaderProps {
   title: string;
@@ -20,6 +23,25 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
+  const { alerts } = useAppData();
+  const unreadCount = alerts.filter((a) => !a.is_read).length;
+
+  // Dark mode toggle
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    const saved = localStorage.getItem("swachhsetu-theme");
+    const isDark = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setDark(isDark);
+    document.documentElement.classList.toggle("dark", isDark);
+  }, []);
+
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("swachhsetu-theme", next ? "dark" : "light");
+  }
+
   return (
     <header className="h-16 border-b border-border bg-background/80 backdrop-blur-sm px-6 flex items-center justify-between gap-4 sticky top-0 z-30">
       {/* Left: Page title */}
@@ -32,25 +54,34 @@ export function Header({ title, subtitle }: HeaderProps) {
         )}
       </div>
 
-      {/* Right: Search, Notifications, User */}
+      {/* Right: Search, Dark Mode, Notifications, User */}
       <div className="flex items-center gap-2">
         {/* Search — hidden on mobile */}
         <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search..."
+            placeholder="Search bins, vehicles..."
             className="w-[240px] rounded-lg pl-9 h-9 text-sm"
           />
         </div>
 
-        {/* Notification bell */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-4 w-4" />
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-white">
-            3
-          </span>
-          <span className="sr-only">Notifications</span>
+        {/* Dark mode toggle */}
+        <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle dark mode">
+          {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
+
+        {/* Notification bell — links to alerts page */}
+        <Link href="/alerts">
+          <Button variant="ghost" size="icon" className="relative" title="View alerts">
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white animate-pulse">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+            <span className="sr-only">Notifications ({unreadCount} unread)</span>
+          </Button>
+        </Link>
 
         {/* User avatar dropdown */}
         <DropdownMenu>
@@ -58,7 +89,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             render={
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
                     AD
                   </AvatarFallback>
                 </Avatar>

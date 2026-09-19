@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, type ChangeEvent } from "react";
+import { useState, useRef, useCallback, type ChangeEvent } from "react";
 import { Header } from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import {
   Leaf,
   Info,
   ArrowRight,
+  History,
+  Trash2,
 } from "lucide-react";
 import { classifyWaste, type WasteClassificationResult } from "@/lib/services/ml-api";
 
@@ -109,7 +111,15 @@ export default function WasteClassificationPage() {
   const [isScanning, setIsScanning] = useState(false);
   const [customUploaded, setCustomUploaded] = useState(false);
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
+  const [history, setHistory] = useState<Array<SampleItem & { timestamp: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addToHistory = useCallback((item: SampleItem) => {
+    setHistory(prev => [
+      { ...item, timestamp: new Date().toLocaleTimeString() },
+      ...prev.slice(0, 9), // keep last 10
+    ]);
+  }, []);
 
   const triggerScan = (item: SampleItem) => {
     setIsScanning(true);
@@ -117,6 +127,7 @@ export default function WasteClassificationPage() {
     setUploadedPreview(null);
     setTimeout(() => {
       setSelectedItem(item);
+      addToHistory(item);
       setIsScanning(false);
     }, 400);
   };
@@ -133,7 +144,7 @@ export default function WasteClassificationPage() {
     const apiRes = await classifyWaste(file);
 
     if (apiRes && apiRes.is_valid !== false && apiRes.category !== "Unavailable") {
-      setSelectedItem({
+      const result: SampleItem = {
         id: `upload-${Date.now()}`,
         name: `Uploaded Specimen: ${file.name} (${apiRes.image_dimensions || 'Verified'})`,
         category: apiRes.category,
@@ -144,11 +155,13 @@ export default function WasteClassificationPage() {
         decompositionTime: apiRes.decompositionTime,
         tips: apiRes.tips,
         emoji: CATEGORY_EMOJIS[apiRes.category] || "🗑️",
-      });
+      };
+      setSelectedItem(result);
+      addToHistory(result);
     } else {
       // Display honest error state when classification fails or image is unparseable
       const errorMsg = apiRes?.error_detail || apiRes?.error || "Neural classifier backend service unreachable or file unparseable.";
-      setSelectedItem({
+      const errItem: SampleItem = {
         id: `upload-err-${Date.now()}`,
         name: `Upload Failed: ${file.name}`,
         category: "Other",
@@ -159,7 +172,8 @@ export default function WasteClassificationPage() {
         decompositionTime: "Unknown",
         tips: `Honest Status: ${errorMsg}`,
         emoji: "⚠️",
-      });
+      };
+      setSelectedItem(errItem);
     }
 
     setIsScanning(false);
@@ -393,6 +407,51 @@ export default function WasteClassificationPage() {
             </Card>
           </div>
         </div>
+
+        {/* Classification History Log */}
+        {history.length > 0 && (
+          <Card className="shadow-none">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-base font-semibold">Session Classification History</CardTitle>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-muted-foreground gap-1"
+                  onClick={() => setHistory([])}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Clear
+                </Button>
+              </div>
+              <CardDescription className="text-xs">
+                Last {history.length} classification{history.length !== 1 ? "s" : ""} in this session
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border">
+                {history.map((item, idx) => (
+                  <div key={`${item.id}-${idx}`} className="flex items-center gap-3 px-6 py-3 hover:bg-muted/30 transition-colors">
+                    <span className="text-xl shrink-0">{item.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold truncate">{item.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{item.recyclability}</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] shrink-0">{item.category}</Badge>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-bold text-primary tabular-nums">{item.confidence}%</p>
+                      <p className="text-[10px] text-muted-foreground">{item.timestamp}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
       </div>
     </>
   );

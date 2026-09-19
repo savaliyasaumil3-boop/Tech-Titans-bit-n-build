@@ -9,6 +9,7 @@ import { WasteGenerationChart } from "@/components/dashboard/waste-generation-ch
 import { WasteCompositionChart } from "@/components/dashboard/waste-composition-chart";
 import { LiveIndicator } from "@/components/dashboard/live-indicator";
 import { DemoIndicator } from "@/components/dashboard/demo-indicator";
+import { PredictionTimeline } from "@/components/dashboard/prediction-timeline";
 import { useAppData } from "@/components/providers/app-data-provider";
 
 export default function DashboardPage() {
@@ -18,7 +19,7 @@ export default function DashboardPage() {
     <>
       <Header
         title="Waste Management Dashboard"
-        subtitle="Real-time monitoring and analytics for Ahmedabad"
+        subtitle="Real-time monitoring and AI-powered analytics for Ahmedabad"
       />
 
       <div className="space-y-6 p-6">
@@ -36,6 +37,12 @@ export default function DashboardPage() {
         {/* KPI Cards */}
         <KPICards />
 
+        {/* AI Prediction Timeline + Collection Priority — two columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <PredictionTimeline />
+          <AlertsPanel />
+        </div>
+
         {/* Interactive Map */}
         <section>
           <div className="mb-3 flex items-center justify-between">
@@ -51,15 +58,8 @@ export default function DashboardPage() {
           <DynamicMap dbBins={bins} vehicles={vehicles} height={480} />
         </section>
 
-        {/* Collection Priority + Alerts — two columns on desktop */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-3">
-            <CollectionPriority />
-          </div>
-          <div className="lg:col-span-2">
-            <AlertsPanel />
-          </div>
-        </div>
+        {/* Collection Priority full width */}
+        <CollectionPriority />
 
         {/* Charts — two columns on desktop */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
