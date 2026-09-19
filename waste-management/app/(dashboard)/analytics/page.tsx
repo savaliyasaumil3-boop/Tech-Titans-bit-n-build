@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   PieChart,
@@ -15,6 +15,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts";
 import {
@@ -26,13 +27,14 @@ import {
   Truck,
   Building2,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
 } from "lucide-react";
 import { useAppData } from "@/components/providers/app-data-provider";
 import { getWasteHistory, getBins, getVehicles } from "@/lib/supabase/queries";
 import type { DbWasteRecord, DbBin, DbVehicle } from "@/lib/db-types";
+import { demoWasteRecords, demoBins, demoVehicles } from "@/lib/supabase/demo-data";
 
-// Colors for waste types
+// Vibrant Colors for waste types
 const WASTE_COLORS: Record<string, string> = {
   Plastic: "#0ea5e9", // blue
   Paper: "#f59e0b",   // amber
@@ -58,7 +60,6 @@ export default function AnalyticsPage() {
         getBins(),
         getVehicles()
       ]);
-      const { demoWasteRecords, demoBins, demoVehicles } = await import("@/lib/supabase/demo-data");
       setHistory(histData && histData.length > 0 ? histData : demoWasteRecords);
       setBins(binData && binData.length > 0 ? binData : demoBins);
       setVehicles(vehData && vehData.length > 0 ? vehData : demoVehicles);
@@ -138,7 +139,7 @@ export default function AnalyticsPage() {
       <div className="space-y-6 p-6">
         {/* Reconciled Material Flow Stages Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card className="shadow-none">
+          <Card className="shadow-none border-border">
             <CardContent className="p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-muted-foreground">1. Bin Inventory Mass</span>
@@ -151,7 +152,7 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-none">
+          <Card className="shadow-none border-border">
             <CardContent className="p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-muted-foreground">2. Estimated Generation</span>
@@ -164,7 +165,7 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-none">
+          <Card className="shadow-none border-border">
             <CardContent className="p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-muted-foreground">3. Completed Collection</span>
@@ -177,7 +178,7 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-none">
+          <Card className="shadow-none border-border">
             <CardContent className="p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-muted-foreground">4. Current Transit Load</span>
@@ -190,7 +191,7 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-none">
+          <Card className="shadow-none border-border">
             <CardContent className="p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-muted-foreground">5. Facility Receipts</span>
@@ -272,8 +273,15 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="shadow-none">
             <CardHeader className="pb-4">
-              <CardTitle className="text-base font-semibold">10-Day Waste Generation (kg)</CardTitle>
-              <CardDescription className="text-xs">Derived strictly from positive observation deltas</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold">10-Day Waste Generation Stream (kg)</CardTitle>
+                  <CardDescription className="text-xs">Continuous volume tracking across material streams</CardDescription>
+                </div>
+                <span className="text-[11px] font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200">
+                  Live Telemetry Stream
+                </span>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -283,30 +291,40 @@ export default function AnalyticsPage() {
               ) : (
                 <div className="h-[300px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={generationData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                      <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#888888" tickLine={false} />
-                      <YAxis tick={{ fontSize: 12 }} stroke="#888888" tickLine={false} />
+                    <AreaChart data={generationData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        {Object.keys(WASTE_COLORS).map((type) => (
+                          <linearGradient key={`grad-${type}`} id={`grad-${type}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={WASTE_COLORS[type]} stopOpacity={0.4} />
+                            <stop offset="95%" stopColor={WASTE_COLORS[type]} stopOpacity={0.0} />
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#888888" tickLine={false} />
+                      <YAxis tick={{ fontSize: 11 }} stroke="#888888" tickLine={false} />
                       <RechartsTooltip
                         contentStyle={{
                           backgroundColor: "var(--background)",
                           borderColor: "var(--border)",
                           borderRadius: "8px",
                           fontSize: "12px",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
                         }}
                       />
+                      <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
                       {Object.keys(WASTE_COLORS).map((type) => (
-                        <Line
+                        <Area
                           key={type}
                           type="monotone"
                           dataKey={type}
                           stroke={WASTE_COLORS[type]}
+                          fill={`url(#grad-${type})`}
                           strokeWidth={2}
-                          dot={false}
                           activeDot={{ r: 4 }}
                         />
                       ))}
-                    </LineChart>
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               )}
@@ -337,7 +355,7 @@ export default function AnalyticsPage() {
                           innerRadius={60}
                           outerRadius={95}
                           stroke="none"
-                          paddingAngle={2}
+                          paddingAngle={3}
                           dataKey="value"
                         >
                           {compositionData.map((entry, index) => (
@@ -361,7 +379,7 @@ export default function AnalyticsPage() {
                     {compositionData.map((item) => (
                       <div key={item.name} className="flex items-center gap-2">
                         <div
-                          className="h-3 w-3 rounded-sm"
+                          className="h-3 w-3 rounded-sm shrink-0"
                           style={{ backgroundColor: WASTE_COLORS[item.name] }}
                         />
                         <div>
@@ -445,7 +463,7 @@ export default function AnalyticsPage() {
                       }))}
                       margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
                       <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#888" tickLine={false} />
                       <YAxis tick={{ fontSize: 11 }} stroke="#888" tickLine={false} />
                       <RechartsTooltip
@@ -456,8 +474,8 @@ export default function AnalyticsPage() {
                           fontSize: "12px",
                         }}
                       />
-                      <Bar dataKey="Recyclable" fill="#16a34a" radius={[3, 3, 0, 0]} stackId="a" />
-                      <Bar dataKey="NonRecyclable" fill="#f59e0b" radius={[3, 3, 0, 0]} stackId="a" />
+                      <Bar dataKey="Recyclable" fill="#16a34a" radius={[4, 4, 0, 0]} stackId="a" />
+                      <Bar dataKey="NonRecyclable" fill="#f59e0b" radius={[4, 4, 0, 0]} stackId="a" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
 import { DynamicMap } from "@/components/map/dynamic-map";
 import { useAppData } from "@/components/providers/app-data-provider";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Clock, Route, Compass, Play, Square } from "lucide-react";
 import { optimizeRoute, fallbackOptimizeRoute } from "@/lib/services/ml-api";
 import type { OptimizedRoute } from "@/lib/db-types";
+import { supabase } from "@/lib/supabase/client";
 
 function timeFormat(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
@@ -25,8 +26,16 @@ export default function RoutesPage() {
   const [activeRoute, setActiveRoute] = useState<OptimizedRoute | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState("");
+  const [drivers, setDrivers] = useState<{ id: string; full_name: string | null; driver_id: string | null; vehicle_id: string | null }[]>([]);
+  const [dispatchMessage, setDispatchMessage] = useState<string | null>(null);
 
   const availableVehicles = vehicles.filter(v => v.status === "available" || v.status === "collecting");
+
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase.from("profiles").select("id, full_name, driver_id, vehicle_id").eq("role", "driver").then(({ data }) => setDrivers(data ?? []));
+  }, []);
 
   const handleOptimize = async () => {
     if (!selectedVehicle) return;
@@ -76,6 +85,32 @@ export default function RoutesPage() {
     }
 
     setActiveRoute(route);
+    if (supabase && selectedDriver && route) {
+      const routeId = `ROUTE-${vehicle.id}-${Date.now()}`;
+      const { error } = await supabase.from("route_plans").insert({
+        id: routeId,
+        vehicle_id: vehicle.id,
+        driver_id: selectedDriver,
+        status: "dispatched",
+        total_distance_km: route.total_distance_km,
+        estimated_time_minutes: route.estimated_time_minutes,
+        stops_json: route.stops,
+        dispatched_at: new Date().toISOString(),
+      });
+      if (!error) {
+        const { error: stopsError } = await supabase.from("route_stops").insert(route.stops.map((stop) => ({
+          id: `${routeId}-${stop.id}`,
+          route_plan_id: routeId,
+          bin_id: stop.id,
+          sequence_order: stop.order,
+          planned_load_kg: stop.required_collection_kg,
+          status: "pending",
+        })));
+        setDispatchMessage(stopsError ? stopsError.message : "Assignment dispatched to the selected driver.");
+      } else setDispatchMessage(error.message);
+    } else if (!selectedDriver) {
+      setDispatchMessage("Select an assigned driver before dispatching this route.");
+    }
     setIsOptimizing(false);
   };
 
@@ -128,13 +163,21 @@ export default function RoutesPage() {
                   </Select>
                 </div>
 
-                <Button
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Assign Driver</label>
+                    <Select value={selectedDriver} onValueChange={(val) => val && setSelectedDriver(val)}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Select driver..." /></SelectTrigger>
+                      <SelectContent>{drivers.filter((d) => !selectedVehicle || !d.vehicle_id || d.vehicle_id === selectedVehicle).map((driver) => <SelectItem key={driver.id} value={driver.driver_id ?? driver.id}>{driver.full_name ?? driver.driver_id ?? driver.id}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <Button
                   className="w-full"
                   disabled={!selectedVehicle || isOptimizing}
                   onClick={handleOptimize}
                 >
                   {isOptimizing ? "Optimizing..." : "Generate Optimal Route"}
                 </Button>
+                {dispatchMessage && <p role="status" className="text-xs text-muted-foreground">{dispatchMessage}</p>}
               </CardContent>
             </Card>
 

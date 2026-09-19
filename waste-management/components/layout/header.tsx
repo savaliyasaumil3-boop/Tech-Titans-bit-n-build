@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAppData } from "@/components/providers/app-data-provider";
+import { useAuth } from "@/components/providers/auth-provider";
 
 interface HeaderProps {
   title: string;
@@ -24,6 +25,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const { alerts } = useAppData();
+  const { profile, user, signOut } = useAuth();
   const unreadCount = alerts.filter((a) => !a.is_read).length;
 
   // Dark mode toggle
@@ -98,9 +100,9 @@ export function Header({ title, subtitle }: HeaderProps) {
           />
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="font-normal">
-              <p className="text-sm font-medium">Admin</p>
+              <p className="text-sm font-medium">{profile?.full_name ?? "Supervisor"}</p>
               <p className="text-xs text-muted-foreground">
-                admin@swachhsetu.in
+                {user?.email ?? ""}
               </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -115,7 +117,7 @@ export function Header({ title, subtitle }: HeaderProps) {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void signOut()}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </DropdownMenuItem>

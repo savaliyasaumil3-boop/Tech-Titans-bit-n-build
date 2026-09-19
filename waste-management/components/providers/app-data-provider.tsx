@@ -110,6 +110,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!supabase) return;
+    const channel = supabase
+      .channel("swachhsetu-operations")
+      .on("postgres_changes", { event: "*", schema: "public", table: "route_plans" }, () => void loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "route_stops" }, () => void loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "collection_events" }, () => void loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "facility_receipts" }, () => void loadData())
+      .subscribe();
+    return () => { void supabase?.removeChannel(channel); };
+  }, [loadData]);
+
   const refreshData = useCallback(() => {
     loadData();
   }, [loadData]);

@@ -220,7 +220,7 @@ export default function AlertsPage() {
                             {alert.vehicle_id}
                           </span>
                         )}
-                        <span className="text-xs text-muted-foreground ml-auto">
+                        <span className="text-xs text-muted-foreground ml-auto" suppressHydrationWarning>
                           {timeAgo(alert.created_at)}
                         </span>
                       </div>

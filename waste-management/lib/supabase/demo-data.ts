@@ -73,17 +73,29 @@ export const demoVehicles: DbVehicle[] = [
 
 // ─── Predictions ──────────────────────────────────────────────────────────────
 
-export const demoPredictions: DbPrediction[] = demoBins.map((bin) => ({
-  id: `PRED-${bin.id}`,
-  bin_id: bin.id,
-  predicted_full_hours: bin.predicted_full_hours,
-  predicted_fill_percentage: Math.min(100, bin.fill_percentage + Math.round(bin.fill_percentage * 0.1)),
-  overflow_probability: bin.fill_percentage >= 90 ? 0.88 + Math.random() * 0.1
-    : bin.fill_percentage >= 75 ? 0.45 + Math.random() * 0.3
-    : bin.fill_percentage >= 50 ? 0.1 + Math.random() * 0.2
-    : Math.random() * 0.1,
-  prediction_created_at: new Date().toISOString(),
-}));
+export const demoPredictions: DbPrediction[] = demoBins.map((bin, index) => {
+  const seed = ((index * 17) % 100) / 100;
+  const overflow_probability =
+    bin.fill_percentage >= 90
+      ? 0.88 + seed * 0.1
+      : bin.fill_percentage >= 75
+      ? 0.45 + seed * 0.3
+      : bin.fill_percentage >= 50
+      ? 0.1 + seed * 0.2
+      : seed * 0.1;
+
+  return {
+    id: `PRED-${bin.id}`,
+    bin_id: bin.id,
+    predicted_full_hours: bin.predicted_full_hours,
+    predicted_fill_percentage: Math.min(
+      100,
+      bin.fill_percentage + Math.round(bin.fill_percentage * 0.1)
+    ),
+    overflow_probability: Math.round(overflow_probability * 100) / 100,
+    prediction_created_at: "2026-09-19T08:00:00Z",
+  };
+});
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────
 
@@ -100,6 +112,12 @@ export const demoAlerts: DbAlert[] = [
   { id: "ALT-010", bin_id: null, vehicle_id: null, type: "system", severity: "info", message: "AI prediction model updated — accuracy at 93.7%", is_read: true, created_at: "2026-09-19T06:30:00Z" },
   { id: "ALT-011", bin_id: "BIN-007", vehicle_id: null, type: "overflow", severity: "warning", message: "BIN-007 at Law Garden at 85% — schedule collection within 4 hours", is_read: true, created_at: "2026-09-19T07:55:00Z" },
   { id: "ALT-012", bin_id: "BIN-034", vehicle_id: null, type: "overflow", severity: "warning", message: "BIN-034 at Naroda Industrial reaching critical levels (88%)", is_read: false, created_at: "2026-09-19T07:38:00Z" },
+  { id: "ALT-013", bin_id: "BIN-014", vehicle_id: null, type: "overflow", severity: "critical", message: "BIN-014 at Gurukul Road Market reached 86% — high commercial plastic surge", is_read: false, created_at: "2026-09-19T08:08:00Z" },
+  { id: "ALT-014", bin_id: "BIN-036", vehicle_id: null, type: "overflow", severity: "critical", message: "BIN-036 at Odhav GIDC metal waste bin at 80% capacity", is_read: false, created_at: "2026-09-19T07:25:00Z" },
+  { id: "ALT-015", bin_id: null, vehicle_id: "V-001", type: "vehicle", severity: "info", message: "V-001 (Compactor) started route optimization for West Ahmedabad", is_read: false, created_at: "2026-09-19T08:30:00Z" },
+  { id: "ALT-016", bin_id: "BIN-004", vehicle_id: null, type: "high_generation", severity: "warning", message: "Vastrapur Lake Garden area experiencing high weekend visitor surge", is_read: false, created_at: "2026-09-19T08:10:00Z" },
+  { id: "ALT-017", bin_id: null, vehicle_id: "V-005", type: "vehicle", severity: "warning", message: "V-005 scheduled maintenance reminder — hydraulic lift check due", is_read: true, created_at: "2026-09-18T16:30:00Z" },
+  { id: "ALT-018", bin_id: null, vehicle_id: null, type: "system", severity: "info", message: "OSRM Road Distance Matrix solver synchronized successfully", is_read: true, created_at: "2026-09-19T05:00:00Z" },
 ];
 
 // ─── Historical waste records (generate several weeks of data) ────────────────
