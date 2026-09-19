@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, Route, Compass, Play, Square } from "lucide-react";
 import { optimizeRoute, fallbackOptimizeRoute } from "@/lib/services/ml-api";
+import { buildVehicleRoutePlan } from "@/lib/services/route-optimizer";
 import type { OptimizedRoute } from "@/lib/db-types";
 import { supabase } from "@/lib/supabase/client";
 
@@ -36,7 +37,7 @@ export default function RoutesPage() {
   useEffect(() => {
     if (!supabase) return;
     void supabase.from("profiles").select("id, full_name, driver_id, vehicle_id").eq("role", "driver").then(({ data }) => setDrivers(data ?? []));
-    void supabase.from("collection_requests").select("id, bin_id, status, assigned_vehicle_id, required_quantity_kg").in("status", ["unassigned", "assigned", "partially_completed"]).then(({ data }) => setRequests(data ?? []));
+    void supabase.from("collection_requests").select("id, bin_id, status, assigned_vehicle_id, required_quantity_kg").in("status", ["unassigned", "assigned", "partially_completed", "resolved", "picked_up"]).then(({ data }) => setRequests(data ?? []));
   }, []);
 
   const handleOptimize = async () => {
@@ -49,15 +50,25 @@ export default function RoutesPage() {
       return;
     }
 
-    const requestBins = requests.length ? priorityBins.filter((bin) => requests.some((request) => request.bin_id === bin.bin_id && (!request.assigned_vehicle_id || request.assigned_vehicle_id === vehicle.id))) : priorityBins;
+    const requestBins = priorityBins.filter((bin) => {
+      const alreadyAssignedElsewhere = requests.some((request) => request.bin_id === bin.bin_id && request.assigned_vehicle_id && request.assigned_vehicle_id !== vehicle.id);
+      return !alreadyAssignedElsewhere;
+    });
+
     const mappedBins = requestBins.map(pb => {
       const dbBin = bins.find(b => b.id === pb.bin_id);
+      const fillPercent = Math.min(Math.max(pb.fill_percentage, 0), 100);
+      const capacity = dbBin?.capacity_kg ?? 200;
+      const remainingCapacityKg = Math.max(0, vehicle.capacity_kg - vehicle.current_load_kg);
+      const requiredCollectionKg = Math.min(Math.round((fillPercent / 100) * capacity), remainingCapacityKg);
       return {
         ...pb,
         id: pb.bin_id,
-        capacity_kg: dbBin?.capacity_kg ?? 200
+        fill_percentage: fillPercent,
+        capacity_kg: capacity,
+        required_collection_kg: requiredCollectionKg,
       };
-    });
+    }).filter((bin) => bin.fill_percentage >= 50 && bin.required_collection_kg > 0);
 
     const payload = {
       vehicle_id: vehicle.id,
@@ -67,15 +78,42 @@ export default function RoutesPage() {
         location_name: b.location_name,
         latitude: b.latitude,
         longitude: b.longitude,
-        required_collection_kg: Math.round((b.fill_percentage / 100) * b.capacity_kg),
+        required_collection_kg: b.required_collection_kg,
         priority: b.priority_score
       }))
     };
 
+    const typedRequests: Array<{ bin_id: string; assigned_vehicle_id: string | null }> = requests;
+
     let route = await optimizeRoute(payload);
-    if (!route) {
-      route = fallbackOptimizeRoute(vehicle.id, vehicle.vehicle_number, vehicle.capacity_kg - vehicle.current_load_kg, mappedBins);
+    if (!route || route.stops.length === 0) {
+      route = fallbackOptimizeRoute(
+        vehicle.id,
+        vehicle.vehicle_number,
+        vehicle.capacity_kg - vehicle.current_load_kg,
+        mappedBins,
+        { latitude: vehicle.latitude, longitude: vehicle.longitude },
+        typedRequests
+      );
       setDispatchMessage("Local route planner used from live bin records; review before dispatch.");
+    }
+
+    route.stops = route.stops.filter((stop) => !typedRequests.some((request) => request.bin_id === stop.id && request.assigned_vehicle_id && request.assigned_vehicle_id !== vehicle.id));
+    if (!route.stops.length) {
+      route = buildVehicleRoutePlan({
+        vehicle: {
+          id: vehicle.id,
+          vehicle_number: vehicle.vehicle_number,
+          capacity_kg: vehicle.capacity_kg,
+          current_load_kg: vehicle.current_load_kg,
+          latitude: vehicle.latitude,
+          longitude: vehicle.longitude,
+          status: vehicle.status,
+        },
+        bins: mappedBins,
+        requests: typedRequests,
+      });
+      setDispatchMessage("No eligible bins remain for this vehicle after capacity and assignment checks.");
     }
 
     setActiveRoute(route);

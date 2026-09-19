@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     await admin.from("bins").update({ fill_percentage: input.fill_percentage, current_fill_kg: input.measured_weight_kg ?? Math.round((input.fill_percentage / 100) * bin.capacity_kg * 10) / 10, status, reading_source: input.reading_source, sensor_status: input.sensor_status ?? "healthy", reading_recorded_at: new Date().toISOString(), last_updated: new Date().toISOString() }).eq("id", input.bin_id);
     if (input.fill_percentage < 80) return NextResponse.json({ status: "healthy", request: null, alert: null });
 
-    const { data: existingRequest } = await admin.from("collection_requests").select("*").eq("bin_id", input.bin_id).in("status", ["unassigned", "assigned", "accepted", "in_progress", "partially_completed"]).maybeSingle();
+    const { data: existingRequest } = await admin.from("collection_requests").select("*").eq("bin_id", input.bin_id).in("status", ["unassigned", "assigned", "accepted", "in_progress", "partially_completed", "resolved", "picked_up"]).maybeSingle();
     const requestRecord = existingRequest ?? (await admin.from("collection_requests").insert({ id: `REQ-${input.bin_id}`, bin_id: input.bin_id, urgency: input.fill_percentage >= 90 ? "urgent" : "high", reason: "fill_threshold", required_quantity_kg: input.measured_weight_kg ?? Math.round((input.fill_percentage / 100) * bin.capacity_kg), waste_stream: bin.waste_type, status: "unassigned" }).select("*").single()).data;
     if (!requestRecord) return NextResponse.json({ error: "Unable to create collection request." }, { status: 500 });
     const alertId = `ALERT-REQ-${requestRecord.id}`;
@@ -40,7 +40,16 @@ export async function POST(request: NextRequest) {
     if (!requestRecord.assigned_vehicle_id) {
       const { data: vehicles } = await admin.from("vehicles").select("*").eq("is_operational", true).eq("duty_status", "on_duty").in("status", ["available", "collecting"]);
       const { data: shifts } = await admin.from("driver_shifts").select("driver_id, vehicle_id, last_location_at").eq("status", "on_duty").in("vehicle_id", (vehicles ?? []).map((vehicle) => vehicle.id));
-      const eligible = (vehicles ?? []).map((vehicle) => ({ vehicle, shift: (shifts ?? []).find((item) => item.vehicle_id === vehicle.id) })).filter(({ vehicle, shift }) => shift && vehicle.capacity_kg - vehicle.current_load_kg >= Number(requestRecord.required_quantity_kg) && (!vehicle.service_area || vehicle.service_area === bin.service_area));
+      const { data: assignedRequests } = await admin.from("collection_requests").select("bin_id, assigned_vehicle_id").in("status", ["assigned", "accepted", "in_progress", "partially_completed", "resolved", "picked_up"]);
+      const alreadyAssignedBins = new Set((assignedRequests ?? []).filter((req) => req.assigned_vehicle_id).map((req) => req.bin_id));
+      const eligible = (vehicles ?? [])
+        .map((vehicle) => ({ vehicle, shift: (shifts ?? []).find((item) => item.vehicle_id === vehicle.id) }))
+        .filter(({ vehicle, shift }) => {
+          if (!shift) return false;
+          if (alreadyAssignedBins.has(input.bin_id)) return false;
+          if (vehicle.capacity_kg - vehicle.current_load_kg < Number(requestRecord.required_quantity_kg)) return false;
+          return !vehicle.service_area || vehicle.service_area === bin.service_area;
+        });
       if (eligible.length) {
         eligible.sort((a, b) => (a.vehicle.current_load_kg / a.vehicle.capacity_kg) - (b.vehicle.current_load_kg / b.vehicle.capacity_kg));
         const selected = eligible[0];

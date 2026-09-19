@@ -1,4 +1,5 @@
 import type { OptimizedRoute, RouteStop } from "../db-types";
+import { buildVehicleRoutePlan } from "./route-optimizer";
 
 const ML_API_URL = process.env.NEXT_PUBLIC_ML_API_URL ?? "http://localhost:8000";
 
@@ -107,26 +108,9 @@ export async function optimizeRoute(
 }
 
 // ─── Client-side fallback route optimizer ────────────────────────────────────
-// Greedy nearest-neighbor heuristic when Python service is unavailable
-
-const DEPOT = { lat: 23.0225, lng: 72.5714, name: "DEPOT" };
-
-function haversineKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+// Greedy nearest-neighbor heuristic when Python service is unavailable.
+// The planner is vehicle-aware and prevents reassigning bins already reserved
+// by another truck.
 
 export function fallbackOptimizeRoute(
   vehicleId: string,
@@ -140,84 +124,33 @@ export function fallbackOptimizeRoute(
     fill_percentage: number;
     capacity_kg: number;
     priority_score: number;
-  }>
+  }>,
+  vehicleLocation?: { latitude: number; longitude: number },
+  requests: Array<{ bin_id: string; assigned_vehicle_id: string | null }> = []
 ): OptimizedRoute {
-  // Filter bins that fit in vehicle and sort by priority descending
-  // Only take bins with fill >= 50% (worth collecting)
-  const candidates = bins
-    .filter((b) => b.fill_percentage >= 50)
-    .sort((a, b) => b.priority_score - a.priority_score);
+  const vehicle = {
+    id: vehicleId,
+    vehicle_number: vehicleNumber,
+    capacity_kg: vehicleCapacityKg,
+    current_load_kg: 0,
+    latitude: vehicleLocation?.latitude ?? 23.0225,
+    longitude: vehicleLocation?.longitude ?? 72.5714,
+    status: "available",
+  };
 
-  // Greedy nearest-neighbor starting from depot, respecting capacity
-  const stops: RouteStop[] = [];
-  let remainingCapacity = vehicleCapacityKg;
-  let currentLat = DEPOT.lat;
-  let currentLng = DEPOT.lng;
-  let totalDistance = 0;
-  const unvisited = [...candidates];
-
-  while (unvisited.length > 0 && remainingCapacity > 0) {
-    // Find nearest bin that we can collect
-    let bestIdx = -1;
-    let bestScore = -Infinity;
-
-    for (let i = 0; i < unvisited.length; i++) {
-      const bin = unvisited[i];
-      const collectionKg = (bin.fill_percentage / 100) * bin.capacity_kg;
-      if (collectionKg > remainingCapacity) continue;
-
-      const distKm = haversineKm(currentLat, currentLng, bin.latitude, bin.longitude);
-      // Score: priority / distance (avoid 0 division)
-      const score = bin.priority_score / (distKm + 0.1);
-      if (score > bestScore) {
-        bestScore = score;
-        bestIdx = i;
-      }
-    }
-
-    if (bestIdx === -1) break;
-
-    const bin = unvisited.splice(bestIdx, 1)[0];
-    const collectionKg = Math.round((bin.fill_percentage / 100) * bin.capacity_kg);
-    const dist = haversineKm(currentLat, currentLng, bin.latitude, bin.longitude);
-    totalDistance += dist;
-    remainingCapacity -= collectionKg;
-    currentLat = bin.latitude;
-    currentLng = bin.longitude;
-
-    stops.push({
-      id: bin.id,
-      name: bin.location_name,
-      latitude: bin.latitude,
-      longitude: bin.longitude,
-      required_collection_kg: collectionKg,
-      priority: bin.priority_score,
-      order: stops.length + 1,
-    });
-
-    // Stop at 10 bins to keep routes manageable
-    if (stops.length >= 10) break;
-  }
-
-  // Return to depot
-  if (stops.length > 0) {
-    const lastStop = stops[stops.length - 1];
-    totalDistance += haversineKm(lastStop.latitude, lastStop.longitude, DEPOT.lat, DEPOT.lng);
-  }
-
-  const totalCollectionKg = stops.reduce((s, st) => s + st.required_collection_kg, 0);
-  const avgSpeedKmh = 30; // urban average
-  const estimatedTimeMin = Math.round((totalDistance / avgSpeedKmh) * 60 + stops.length * 5);
-
-  const routeIds = ["DEPOT", ...stops.map((s) => s.id), "DEPOT"];
+  const route = buildVehicleRoutePlan({
+    vehicle,
+    bins,
+    requests,
+  });
 
   return {
-    vehicle_id: vehicleId,
-    vehicle_number: vehicleNumber,
-    total_distance_km: Math.round(totalDistance * 10) / 10,
-    estimated_time_minutes: estimatedTimeMin,
-    total_collection_kg: totalCollectionKg,
-    route: routeIds,
-    stops,
+    vehicle_id: route.vehicle_id,
+    vehicle_number: route.vehicle_number,
+    total_distance_km: route.total_distance_km,
+    estimated_time_minutes: route.estimated_time_minutes,
+    total_collection_kg: route.total_collection_kg,
+    route: route.route,
+    stops: route.stops as RouteStop[],
   };
 }
