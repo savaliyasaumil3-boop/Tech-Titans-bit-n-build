@@ -34,6 +34,41 @@ export async function predictFill(
   }
 }
 
+// ─── Waste Vision Classification ────────────────────────────────────────────────
+
+export interface WasteClassificationResult {
+  category: "Plastic" | "Organic" | "Metal" | "Paper" | "Glass" | "E-Waste" | "Other";
+  confidence: number;
+  filename: string;
+  image_dimensions: string;
+  recyclability: string;
+  recommendedBin: string;
+  carbonOffset: string;
+  decompositionTime: string;
+  tips: string;
+  all_scores?: Record<string, number>;
+}
+
+export async function classifyWaste(file: File): Promise<WasteClassificationResult | null> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${ML_API_URL}/api/ml/classify-waste`, {
+      method: "POST",
+      body: formData,
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) return null;
+    return res.json();
+  } catch (err) {
+    console.error("classifyWaste error:", err);
+    return null;
+  }
+}
+
+
 // ─── Route Optimization ───────────────────────────────────────────────────────
 
 interface OptimizeRouteRequest {

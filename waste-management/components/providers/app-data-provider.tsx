@@ -216,11 +216,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [bins]);
 
   useEffect(() => {
-    if (!isLive) return;
+    // Only run random local simulation if explicitly in Demo Mode
+    if (!isLive || !configDemoMode) return;
     const delay = (20 + Math.floor(Math.random() * 11)) * 1000; // 20-30s
     const timer = setTimeout(simulateUpdate, delay);
     return () => clearTimeout(timer);
   }, [isLive, simulateUpdate]);
+
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const resolveAlert = useCallback((id: string) => {

@@ -1,5 +1,6 @@
 import math
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
 
 WASTE_TYPE_WEIGHTS: Dict[str, float] = {
     "Organic": 1.15,   # Hazard/odor accelerates urgency
@@ -24,13 +25,66 @@ def estimate_overflow_probability(fill_percentage: float) -> float:
     return round(fill_percentage * 0.001, 3)
 
 def predict_fill_hours(fill_percentage: float, capacity_kg: float, avg_daily_generation_kg: float = 15.0) -> float:
-    """Predicts hours until a bin reaches 100% capacity."""
-    remaining_capacity_kg = capacity_kg * (1 - fill_percentage / 100)
+    """Predicts hours until a bin reaches 100% capacity using rate heuristic."""
+    remaining_capacity_kg = capacity_kg * (1 - fill_percentage / 100.0)
     hourly_rate = avg_daily_generation_kg / 24.0
     if hourly_rate <= 0 or remaining_capacity_kg <= 0:
         return 0.5
     hours = remaining_capacity_kg / hourly_rate
     return round(max(0.5, hours), 1)
+
+def predict_fill_hours_from_history(
+    fill_percentage: float,
+    capacity_kg: float,
+    waste_records: Optional[List[Dict[str, Any]]] = None,
+    default_avg_daily_kg: float = 15.0
+) -> Dict[str, Any]:
+    """
+    Predicts fill hours based on historical waste records if available,
+    otherwise uses heuristic. Returns prediction metadata detailing method used.
+    """
+    remaining_capacity_kg = capacity_kg * (1 - fill_percentage / 100.0)
+    if remaining_capacity_kg <= 0:
+        return {
+            "predicted_full_hours": 0.5,
+            "method": "instant_overflow",
+            "daily_rate_kg": default_avg_daily_kg
+        }
+
+    if waste_records and len(waste_records) >= 3:
+        # Calculate daily generation rate from historical records
+        total_weight = sum(r.get("weight_kg", 0) for r in waste_records)
+        dates = []
+        for r in waste_records:
+            try:
+                dt_str = r.get("recorded_at", "")
+                if dt_str:
+                    dates.append(datetime.fromisoformat(dt_str.replace("Z", "+00:00")))
+            except Exception:
+                pass
+        
+        if len(dates) >= 2:
+            dates.sort()
+            span_days = max(1.0, (dates[-1] - dates[0]).total_seconds() / 86400.0)
+            daily_rate = total_weight / span_days
+            if daily_rate > 0:
+                hourly_rate = daily_rate / 24.0
+                hours = remaining_capacity_kg / hourly_rate
+                return {
+                    "predicted_full_hours": round(max(0.5, hours), 1),
+                    "method": "historical_time_series_trend",
+                    "daily_rate_kg": round(daily_rate, 2),
+                    "sample_records_count": len(waste_records)
+                }
+
+    # Fallback heuristic
+    hourly_rate = default_avg_daily_kg / 24.0
+    hours = remaining_capacity_kg / hourly_rate
+    return {
+        "predicted_full_hours": round(max(0.5, hours), 1),
+        "method": "heuristic_fallback",
+        "daily_rate_kg": default_avg_daily_kg
+    }
 
 def calculate_priority_score(
     fill_percentage: float,

@@ -1,6 +1,11 @@
 import os
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 from typing import Optional
+
+# Load .env file from current directory or parent
+load_dotenv(".env")
+load_dotenv("../.env")
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "SwachhSetu Backend API"
@@ -16,10 +21,16 @@ class Settings(BaseSettings):
     DEPOT_LNG: float = 72.5714
     
     # CORS
-    CORS_ORIGINS: list[str] = ["*"]
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    CORS_ORIGINS: list[str] = [
+        os.getenv("FRONTEND_URL", "http://localhost:3000"),
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "*"
+    ]
 
     class Config:
-        env_file = "../.env"
         extra = "ignore"
 
 settings = Settings()
+

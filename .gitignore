@@ -1,4 +1,4 @@
-# dependencies
+# Dependencies
 node_modules/
 .next/
 out/
@@ -9,19 +9,18 @@ venv/
 __pycache__/
 *.pyc
 
-# environment files (NEVER COMMIT REAL KEYS)
+# Environment & Secrets (NEVER COMMIT REAL KEYS)
 .env
 .env*.local
 .env.production
 .env.development
 !.env.example
 
-# debug & misc
-.DS_Store
-*.pem
+# Logs & Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 *.tsbuildinfo
-next-env.d.ts
+.DS_Store
+*.pem
