@@ -103,29 +103,35 @@ export function SmartBinFill({
 
   return (
     <group position={[0, 0, 0]}>
-      {/* 1. Volumetric Waste Mass Block */}
+      {/* 1. OPAQUE Solid Volumetric 3D Waste Mass Block (Spans from bottom base floor y=0.06 up to topSurfaceY) */}
       <mesh ref={meshRef} position={[0, fillCenterY, 0]} castShadow receiveShadow>
         <boxGeometry args={[binWidth * 0.86, currentFillHeight, binWidth * 0.74]} />
         <meshStandardMaterial
-          color={streamColor}
-          roughness={0.4}
+          color={activeColor}
+          roughness={0.3}
           metalness={0.2}
           emissive={activeColor}
-          emissiveIntensity={isInsideView ? 0.35 : 0.15}
-          transparent
-          opacity={0.92}
+          emissiveIntensity={0.25}
+          transparent={false}
         />
       </mesh>
 
+      {/* 1b. Outer Edge Highlights on the 3D Waste Block for volumetric depth */}
+      <lineSegments position={[0, fillCenterY, 0]}>
+        <edgesGeometry args={[new THREE.BoxGeometry(binWidth * 0.86, currentFillHeight, binWidth * 0.74)]} />
+        <lineBasicMaterial color="#ffffff" transparent opacity={0.4} linewidth={2} />
+      </lineSegments>
+
       {/* 2. Top Waste Surface Cap */}
-      <mesh position={[0, topSurfaceY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, topSurfaceY + 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[binWidth * 0.85, binWidth * 0.73]} />
         <meshStandardMaterial
           color={activeColor}
           roughness={0.2}
           side={THREE.DoubleSide}
           emissive={activeColor}
-          emissiveIntensity={0.4}
+          emissiveIntensity={0.5}
+          transparent={false}
         />
       </mesh>
 
