@@ -43,7 +43,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   }
 
   return (
-    <header className="h-16 border-b border-border bg-background/80 backdrop-blur-sm px-6 flex items-center justify-between gap-4 sticky top-0 z-30">
+    <header className="h-16 border-b border-border bg-background/95 backdrop-blur-md px-6 flex items-center justify-between gap-4 sticky top-0 z-40 shrink-0">
       {/* Left: Page title */}
       <div className="min-w-0">
         <h1 className="text-xl font-semibold tracking-tight truncate">

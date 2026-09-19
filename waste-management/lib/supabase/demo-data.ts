@@ -108,7 +108,7 @@ function generateWasteRecords(): DbWasteRecord[] {
   const records: DbWasteRecord[] = [];
 
   // 30 days of data, ~5-10 records per bin per day (sampling)
-  const now = new Date("2026-09-19T08:00:00Z");
+  const now = new Date();
   let recordId = 1;
 
   for (let dayOffset = 30; dayOffset >= 0; dayOffset--) {

@@ -54,13 +54,14 @@ export default function AnalyticsPage() {
     async function loadData() {
       setLoading(true);
       const [histData, binData, vehData] = await Promise.all([
-        getWasteHistory(undefined, 20),
+        getWasteHistory(undefined, 30),
         getBins(),
         getVehicles()
       ]);
-      setHistory(histData);
-      setBins(binData);
-      setVehicles(vehData);
+      const { demoWasteRecords, demoBins, demoVehicles } = await import("@/lib/supabase/demo-data");
+      setHistory(histData && histData.length > 0 ? histData : demoWasteRecords);
+      setBins(binData && binData.length > 0 ? binData : demoBins);
+      setVehicles(vehData && vehData.length > 0 ? vehData : demoVehicles);
       setLoading(false);
     }
     loadData();

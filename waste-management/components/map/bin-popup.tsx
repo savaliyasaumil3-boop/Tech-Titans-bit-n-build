@@ -3,6 +3,7 @@
 import type { SmartBin } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Clock, MapPin, Trash2 } from "lucide-react";
+import { useBin3DStore } from "@/lib/store/use-bin-3d-store";
 
 interface BinPopupProps {
   bin: SmartBin;
@@ -74,7 +75,7 @@ export function BinPopup({ bin }: BinPopupProps) {
       </div>
 
       {/* Details grid */}
-      <div className="grid grid-cols-2 gap-2 text-xs">
+      <div className="grid grid-cols-2 gap-2 text-xs mb-3">
         <div>
           <span className="text-muted-foreground">Capacity</span>
           <p className="font-medium">{bin.capacity}L</p>
@@ -98,6 +99,22 @@ export function BinPopup({ bin }: BinPopupProps) {
           <p className="font-medium">{bin.priorityScore}/100</p>
         </div>
       </div>
+
+      {/* 3D Digital Twin Action */}
+      <Inspect3DButton binId={bin.id} />
     </div>
+  );
+}
+
+function Inspect3DButton({ binId }: { binId: string }) {
+  const open3DViewer = useBin3DStore((state) => state.open3DViewer);
+  return (
+    <button
+      onClick={() => open3DViewer(binId)}
+      className="w-full py-1.5 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+    >
+      <span>🧊</span>
+      <span>Inspect 3D Digital Twin</span>
+    </button>
   );
 }

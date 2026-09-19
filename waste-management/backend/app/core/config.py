@@ -3,8 +3,10 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 from typing import Optional
 
-# Load .env file from current directory or parent
+# Load .env / .env.local file from current directory or parent
+load_dotenv(".env.local")
 load_dotenv(".env")
+load_dotenv("../.env.local")
 load_dotenv("../.env")
 
 class Settings(BaseSettings):

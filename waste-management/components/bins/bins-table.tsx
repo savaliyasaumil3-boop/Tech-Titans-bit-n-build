@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Clock, Eye, Truck } from "lucide-react";
 import { BinDetailsDrawer } from "./bin-details-drawer";
+import { useBin3DStore } from "@/lib/store/use-bin-3d-store";
 
 interface BinsTableProps {
   bins: DbBin[];
@@ -60,6 +61,7 @@ export function BinsTable({
 }: BinsTableProps) {
   const [selectedBin, setSelectedBin] = useState<DbBin | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const open3DViewer = useBin3DStore((state) => state.open3DViewer);
 
   const filtered = useMemo(() => {
     return bins.filter((bin) => {
@@ -165,12 +167,26 @@ export function BinsTable({
                         size="sm"
                         variant="ghost"
                         className="h-7 w-7 p-0"
+                        title="View Details"
                         onClick={(e) => {
                           e.stopPropagation();
                           openDetails(bin);
                         }}
                       >
                         <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 text-xs gap-1 font-semibold"
+                        title="Inspect 3D Digital Twin"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          open3DViewer(bin.id);
+                        }}
+                      >
+                        <span>🧊</span>
+                        <span>3D</span>
                       </Button>
                       <Button
                         size="sm"
