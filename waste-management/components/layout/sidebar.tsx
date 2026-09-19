@@ -48,7 +48,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "hidden md:flex flex-col fixed inset-y-0 left-0 z-30 bg-sidebar border-r border-sidebar-border transition-all duration-300",
+        "hidden lg:flex flex-col fixed inset-y-0 left-0 z-30 bg-sidebar border-r border-sidebar-border transition-all duration-300",
         collapsed ? "w-16" : "w-64"
       )}
     >
@@ -105,7 +105,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             if (collapsed) {
               return (
                 <Tooltip key={href}>
-                  <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
+                  <TooltipTrigger render={linkEl} />
                   <TooltipContent side="right">{label}</TooltipContent>
                 </Tooltip>
               );
@@ -140,13 +140,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </div>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Avatar className="h-7 w-7 shrink-0 cursor-pointer">
-              <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-primary font-semibold">
-                AM
-              </AvatarFallback>
-            </Avatar>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Avatar className="h-7 w-7 shrink-0 cursor-pointer">
+                <AvatarFallback className="text-xs bg-sidebar-accent text-sidebar-primary font-semibold">
+                  AM
+                </AvatarFallback>
+              </Avatar>
+            }
+          />
           <TooltipContent side={collapsed ? "right" : "top"}>
             Admin Manager
           </TooltipContent>
