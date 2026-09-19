@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Header } from "@/components/layout/header";
 import { useAppData } from "@/components/providers/app-data-provider";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -31,6 +31,7 @@ import {
   Package,
 } from "lucide-react";
 import type { DbVehicle } from "@/lib/db-types";
+import { supabase } from "@/lib/supabase/client";
 
 function vehicleStatusBadge(status: DbVehicle["status"]) {
   const styles: Record<DbVehicle["status"], string> = {
@@ -70,6 +71,15 @@ export default function VehiclesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedVehicle, setSelectedVehicle] = useState<DbVehicle | null>(null);
   const [isUnloading, setIsUnloading] = useState(false);
+  const [drivers, setDrivers] = useState<{ id: string; full_name: string | null; driver_id: string | null }[]>([]);
+  const [registration, setRegistration] = useState({ vehicle_number: "", vehicle_type: "Compactor Truck", capacity_kg: "1000", supported_waste_streams: "Mixed Recyclable", service_area: "", depot: "", latitude: "23.0225", longitude: "72.5714", existing_driver_id: "", driver_name: "", driver_email: "", driver_phone: "", temporary_password: "" });
+  const [registrationState, setRegistrationState] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [registrationMessage, setRegistrationMessage] = useState("");
+
+  useEffect(() => {
+    if (!supabase) return;
+    void supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").eq("is_active", true).order("full_name").then(({ data }) => setDrivers(data ?? []));
+  }, []);
 
   const filtered = vehicles.filter((v) => {
     if (search) {
@@ -90,11 +100,13 @@ export default function VehiclesPage() {
     setIsUnloading(true);
     try {
       const baseUrl = process.env.NEXT_PUBLIC_ML_API_URL || "http://localhost:8000";
+      const { data: session } = supabase?.auth ? await supabase.auth.getSession() : { data: { session: null } };
+      if (!session.session?.access_token) throw new Error("Supervisor session expired.");
       const res = await fetch(`${baseUrl}/api/collections/unload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer test-jwt-token",
+          "Authorization": `Bearer ${session.session.access_token}`,
         },
         body: JSON.stringify({
           vehicle_id: v.id,
@@ -118,6 +130,22 @@ export default function VehiclesPage() {
     }
   };
 
+  const registerVehicleAndDriver = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!supabase) return;
+    setRegistrationState("saving");
+    setRegistrationMessage("");
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session?.access_token) { setRegistrationState("error"); setRegistrationMessage("Your supervisor session has expired."); return; }
+    const response = await fetch("/api/supervisor/register-vehicle-driver", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` }, body: JSON.stringify({ ...registration, capacity_kg: Number(registration.capacity_kg), latitude: Number(registration.latitude), longitude: Number(registration.longitude), supported_waste_streams: registration.supported_waste_streams.split(",").map((value) => value.trim()).filter(Boolean) }) });
+    const result = await response.json();
+    if (!response.ok) { setRegistrationState("error"); setRegistrationMessage(result.error ?? "Registration failed."); return; }
+    setRegistrationState("success");
+    setRegistrationMessage("Vehicle and driver registered. The driver must change the temporary password at first login.");
+    setRegistration((current) => ({ ...current, vehicle_number: "", service_area: "", depot: "", existing_driver_id: "", driver_name: "", driver_email: "", driver_phone: "", temporary_password: "" }));
+    refreshData();
+  };
+
   // Summary stats
   const activeCount = vehicles.filter(v => v.status === "collecting" || v.status === "available").length;
   const maintenanceCount = vehicles.filter(v => v.status === "maintenance").length;
@@ -129,6 +157,26 @@ export default function VehiclesPage() {
       <Header title="Fleet Management" subtitle="Vehicle status and utilization" />
 
       <div className="space-y-6 p-6">
+        <Card>
+          <CardHeader><CardTitle className="text-base font-semibold">Register Vehicle and Driver</CardTitle><CardDescription>Create a separate driver account or attach an existing driver.</CardDescription></CardHeader>
+          <CardContent>
+            <form onSubmit={registerVehicleAndDriver} className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Input required placeholder="Vehicle registration" value={registration.vehicle_number} onChange={(e) => setRegistration({ ...registration, vehicle_number: e.target.value })} />
+              <Input required placeholder="Vehicle type" value={registration.vehicle_type} onChange={(e) => setRegistration({ ...registration, vehicle_type: e.target.value })} />
+              <Input required type="number" min="1" placeholder="Capacity (kg)" value={registration.capacity_kg} onChange={(e) => setRegistration({ ...registration, capacity_kg: e.target.value })} />
+              <Input required placeholder="Waste streams, comma separated" value={registration.supported_waste_streams} onChange={(e) => setRegistration({ ...registration, supported_waste_streams: e.target.value })} />
+              <Input required placeholder="Operating area" value={registration.service_area} onChange={(e) => setRegistration({ ...registration, service_area: e.target.value })} />
+              <Input required placeholder="Depot" value={registration.depot} onChange={(e) => setRegistration({ ...registration, depot: e.target.value })} />
+              <Input required type="number" step="any" placeholder="Depot latitude" value={registration.latitude} onChange={(e) => setRegistration({ ...registration, latitude: e.target.value })} />
+              <Input required type="number" step="any" placeholder="Depot longitude" value={registration.longitude} onChange={(e) => setRegistration({ ...registration, longitude: e.target.value })} />
+              <Select value={registration.existing_driver_id} onValueChange={(value) => value && setRegistration({ ...registration, existing_driver_id: value, driver_name: "", driver_email: "", temporary_password: "" })}><SelectTrigger><SelectValue placeholder="Use existing driver" /></SelectTrigger><SelectContent>{drivers.map((driver) => <SelectItem key={driver.id} value={driver.id}>{driver.full_name ?? driver.driver_id ?? driver.id}</SelectItem>)}</SelectContent></Select>
+              <Input placeholder="New driver name" value={registration.driver_name} disabled={Boolean(registration.existing_driver_id)} onChange={(e) => setRegistration({ ...registration, driver_name: e.target.value })} />
+              <Input type="email" placeholder="New driver email" value={registration.driver_email} disabled={Boolean(registration.existing_driver_id)} onChange={(e) => setRegistration({ ...registration, driver_email: e.target.value })} />
+              <Input type="password" placeholder="Temporary password" value={registration.temporary_password} disabled={Boolean(registration.existing_driver_id)} onChange={(e) => setRegistration({ ...registration, temporary_password: e.target.value })} />
+              <div className="flex items-center gap-3 md:col-span-2 xl:col-span-4"><Button type="submit" disabled={registrationState === "saving"}>{registrationState === "saving" ? "Registering..." : "Register vehicle"}</Button>{registrationMessage && <p role={registrationState === "error" ? "alert" : "status"} className={`text-sm ${registrationState === "error" ? "text-red-600" : "text-green-700"}`}>{registrationMessage}</p>}</div>
+            </form>
+          </CardContent>
+        </Card>
         {/* Summary */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[

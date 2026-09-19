@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, Route, Compass, Play, Square } from "lucide-react";
-import { optimizeRoute, fallbackOptimizeRoute } from "@/lib/services/ml-api";
+import { optimizeRoute } from "@/lib/services/ml-api";
 import type { OptimizedRoute } from "@/lib/db-types";
 import { supabase } from "@/lib/supabase/client";
 
@@ -41,9 +41,6 @@ export default function RoutesPage() {
     if (!selectedVehicle) return;
 
     setIsOptimizing(true);
-    // Artificial delay to simulate ML processing
-    await new Promise(r => setTimeout(r, 1200));
-
     const vehicle = vehicles.find(v => v.id === selectedVehicle);
     if (!vehicle) {
       setIsOptimizing(false);
@@ -72,16 +69,11 @@ export default function RoutesPage() {
       }))
     };
 
-    let route = await optimizeRoute(payload);
-    
+    const route = await optimizeRoute(payload);
     if (!route) {
-      console.warn("Python ML API unavailable or timed out, using fallback JS optimizer");
-      route = fallbackOptimizeRoute(
-        vehicle.id,
-        vehicle.vehicle_number,
-        vehicle.capacity_kg - vehicle.current_load_kg, // Use remaining capacity
-        mappedBins
-      );
+      setDispatchMessage("Route planning is unavailable. No route was generated or dispatched.");
+      setIsOptimizing(false);
+      return;
     }
 
     setActiveRoute(route);

@@ -13,6 +13,7 @@ export interface AuthProfile {
   full_name: string | null;
   driver_id: string | null;
   vehicle_id: string | null;
+  must_change_password: boolean;
 }
 
 interface AuthContextValue {
@@ -23,6 +24,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  changePassword: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -31,7 +33,7 @@ async function loadProfile(user: User): Promise<AuthProfile> {
   if (!supabase) throw new Error("Authentication is not configured.");
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, full_name, driver_id, vehicle_id")
+    .select("id, role, full_name, driver_id, vehicle_id, must_change_password")
     .eq("id", user.id)
     .single();
   if (error || !data || !["supervisor", "driver"].includes(data.role)) {
@@ -85,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextProfile = await loadProfile(data.user);
       setUser(data.user);
       setProfile(nextProfile);
-      router.replace(nextProfile.role === "driver" ? "/driver/dashboard" : "/dashboard");
+      router.replace(nextProfile.must_change_password ? "/login?mode=change" : nextProfile.role === "driver" ? "/driver/dashboard" : "/dashboard");
     } catch (err) {
       await supabase.auth.signOut();
       throw err;
@@ -107,7 +109,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
-  return <AuthContext.Provider value={{ user, profile, loading, error, signIn, resetPassword, signOut }}>{children}</AuthContext.Provider>;
+  const changePassword = async (password: string) => {
+    if (!supabase) throw new Error("Authentication is not configured.");
+    if (password.length < 10) throw new Error("Password must be at least 10 characters.");
+    const { error: passwordError } = await supabase.auth.updateUser({ password });
+    if (passwordError) throw new Error(passwordError.message);
+    if (user) {
+      const { error: profileError } = await supabase.from("profiles").update({ must_change_password: false, updated_at: new Date().toISOString() }).eq("id", user.id);
+      if (profileError) throw new Error(profileError.message);
+      setProfile((current) => current ? { ...current, must_change_password: false } : current);
+    }
+  };
+
+  return <AuthContext.Provider value={{ user, profile, loading, error, signIn, resetPassword, signOut, changePassword }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
