@@ -52,7 +52,7 @@ export function WasteCompositionChart() {
                       "0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)",
                     fontSize: 13,
                   }}
-                  formatter={(value: number) => [`${value}%`, ""]}
+                  formatter={(value: any) => [`${value}%`, ""]}
                 />
               </PieChart>
             </ResponsiveContainer>
