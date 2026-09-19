@@ -23,6 +23,7 @@ type CollectionRecord = { id: string; collected_weight_kg: number; collection_ou
 type DriverIssue = { id: string; issue_type: string; notes: string; status: string; created_at: string };
 type DriverAlert = { id: string; type: string; severity: string; message: string; is_read: boolean; created_at: string };
 type DriverShift = { id: string; status: string; started_at: string | null; last_location_at: string | null; start_load_kg: number; vehicle_id: string };
+type ChecklistItem = { id: string; route_stop_id: string; checklist_key: string; label: string; is_required: boolean; completed: boolean; completed_at: string | null };
 type Screen = "home" | "assignment" | "route" | "pickup" | "issue" | "unload" | "summary" | "history";
 type PrimaryScreen = "shift" | "route" | "unload" | "activity";
 type ActivityTab = "alerts" | "reports" | "history";
@@ -71,6 +72,7 @@ export default function DriverDashboardPage() {
   const [alerts, setAlerts] = useState<DriverAlert[]>([]);
   const [shift, setShift] = useState<DriverShift | null>(null);
   const [locationState, setLocationState] = useState<"unknown" | "fresh" | "stale" | "unavailable">("unknown");
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [receiptReference, setReceiptReference] = useState("");
   const [unloadMode, setUnloadMode] = useState<"full" | "partial">("partial");
   const [unloadAcceptance, setUnloadAcceptance] = useState<"accepted" | "rejected">("accepted");
@@ -86,7 +88,16 @@ export default function DriverDashboardPage() {
       const { data: stopData } = await supabase.from("route_stops").select("*, bin:bins(*)").eq("route_plan_id", routeData.id).order("sequence_order");
       setStops((stopData ?? []) as Stop[]);
       setRouteBins(((stopData ?? []).map((item) => item.bin).filter(Boolean)) as DbBin[]);
-    } else { setStops([]); setRouteBins([]); }
+      const routeStopIds = (stopData ?? []).map((item) => item.id);
+      const { data: checklistData } = await supabase.from("stop_checklist_items").select("id, route_stop_id, checklist_key, label, is_required, completed, completed_at").eq("route_plan_id", routeData.id).order("created_at");
+      let hydratedChecklist = (checklistData ?? []) as ChecklistItem[];
+      if (!hydratedChecklist.length && routeStopIds.length && profile.driver_id) {
+        const rows = (stopData ?? []).flatMap((item) => [["verify_bin", "Verify the bin ID and location"], ["inspect_waste", "Inspect waste type and access safety"], ["record_reading", "Record weight and residual fill"], ["secure_area", "Secure the area before leaving"]].map(([checklist_key, label]) => ({ id: `${routeData.id}-${item.id}-${checklist_key}`, route_plan_id: routeData.id, route_stop_id: item.id, driver_id: profile.driver_id, checklist_key, label, is_required: true, completed: false })));
+        const { data: createdChecklist } = await supabase.from("stop_checklist_items").upsert(rows, { onConflict: "route_stop_id,checklist_key" }).select("id, route_stop_id, checklist_key, label, is_required, completed, completed_at");
+        hydratedChecklist = (createdChecklist ?? []) as ChecklistItem[];
+      }
+      setChecklist(hydratedChecklist);
+    } else { setStops([]); setRouteBins([]); setChecklist([]); }
     if (profile.vehicle_id) {
       const { data } = await supabase.from("vehicles").select("*").eq("id", profile.vehicle_id).single();
       setVehicle(data as Vehicle | null);
@@ -140,6 +151,8 @@ export default function DriverDashboardPage() {
   }, [shift?.id, shift?.status, profile?.driver_id, vehicle?.id]);
 
   const nextStop = useMemo(() => stops.find((stop) => ["pending", "partial"].includes(stop.status)), [stops]);
+  const nextChecklist = checklist.filter((item) => item.route_stop_id === nextStop?.id);
+  const checklistReady = nextChecklist.filter((item) => item.is_required).every((item) => item.completed);
   const completed = stops.filter((stop) => stop.status === "completed").length;
   const progress = stops.length ? Math.round((completed / stops.length) * 100) : 0;
   const remainingCapacity = vehicle ? Math.max(0, vehicle.capacity_kg - vehicle.current_load_kg) : 0;
@@ -182,9 +195,21 @@ export default function DriverDashboardPage() {
     }
   };
 
+  const toggleChecklist = async (item: ChecklistItem) => {
+    if (!supabase) return;
+    const nextCompleted = !item.completed;
+    const { error } = await supabase.from("stop_checklist_items").update({ completed: nextCompleted, completed_at: nextCompleted ? new Date().toISOString() : null, completed_by: nextCompleted ? profile.id : null }).eq("id", item.id).eq("driver_id", profile.driver_id);
+    if (!error) {
+      setChecklist((items) => items.map((current) => current.id === item.id ? { ...current, completed: nextCompleted, completed_at: nextCompleted ? new Date().toISOString() : null } : current));
+      if (vehicle) await supabase.from("alerts").upsert({ id: `CHECKLIST-${item.id}`, vehicle_id: vehicle.id, type: "system", severity: "info", message: `${item.label}: ${nextCompleted ? "completed" : "reopened"} by ${profile.full_name ?? profile.driver_id}.`, is_read: false }, { onConflict: "id" });
+    }
+    else setNotice(error.message);
+  };
+
   const submitPickup = async () => {
     const client = supabase;
     if (!client || !route || !nextStop || !vehicle || !weight) return;
+    if (!checklistReady) { setNotice("Complete the required stop checklist before recording this pickup."); return; }
     const collectedWeight = Number(weight);
     const residualFill = Number(residual);
     if (nextStop.bin_id !== binConfirmation.trim() || !Number.isFinite(collectedWeight) || collectedWeight <= 0 || collectedWeight > remainingCapacity || !Number.isFinite(residualFill) || residualFill < 0 || residualFill > 100) {
@@ -289,6 +314,7 @@ export default function DriverDashboardPage() {
       {screen === "summary" && <Card><CardHeader><CardTitle>Shift summary</CardTitle></CardHeader><CardContent className="grid grid-cols-3 gap-3 text-center"><div className="rounded-lg bg-green-50 p-3"><p className="text-2xl font-semibold text-green-700">{completed}</p><p className="text-xs text-muted-foreground">Completed</p></div><div className="rounded-lg bg-amber-50 p-3"><p className="text-2xl font-semibold text-amber-700">{stops.filter((stop) => stop.status === "skipped").length}</p><p className="text-xs text-muted-foreground">Skipped</p></div><div className="rounded-lg bg-muted p-3"><p className="text-2xl font-semibold">{stops.filter((stop) => stop.status === "pending").length}</p><p className="text-xs text-muted-foreground">Pending</p></div></CardContent></Card>}
       {screen === "history" && <Card><CardHeader><CardTitle className="flex items-center gap-2"><Clock3 className="h-5 w-5 text-brand" />Activity</CardTitle></CardHeader><CardContent className="space-y-3"><div className="grid grid-cols-3 gap-2"><Button size="sm" variant={activityTab === "alerts" ? "default" : "outline"} onClick={() => setActivityTab("alerts")}>Alerts</Button><Button size="sm" variant={activityTab === "reports" ? "default" : "outline"} onClick={() => setActivityTab("reports")}>My Reports</Button><Button size="sm" variant={activityTab === "history" ? "default" : "outline"} onClick={() => setActivityTab("history")}>History</Button></div>{activityTab === "alerts" && <div className="space-y-2">{alerts.slice(0, 5).map((alert) => <div key={alert.id} className="rounded-lg border p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-medium">{alert.type.replaceAll("_", " ")}</p><Badge variant="outline">{alert.severity}</Badge></div><p className="mt-1 text-sm text-muted-foreground">{alert.message}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p></div>)}{!alerts.length && <p className="text-sm text-muted-foreground">No notifications yet.</p>}</div>}{activityTab === "reports" && <div className="space-y-2">{issues.map((issue) => <div key={issue.id} className="rounded-lg border p-3"><div className="flex items-center justify-between"><p className="text-sm font-medium">{issue.issue_type.replaceAll("_", " ")}</p><Badge variant="outline">{issue.status}</Badge></div><p className="mt-1 text-sm text-muted-foreground">{issue.notes}</p></div>)}{!issues.length && <p className="text-sm text-muted-foreground">No reports submitted.</p>}</div>}{activityTab === "history" && <div className="space-y-2 text-sm text-muted-foreground"><p>{historyRoutes.length} route records</p><p>{receipts.length} unloading receipts</p><p>Pickup history is preserved in the collection records for each route.</p></div>}<Button variant="outline" className="mt-2" onClick={() => void refresh()}><RefreshCw className="mr-2 h-4 w-4" />Refresh activity</Button></CardContent></Card>}
     </div>
+    {screen === "route" && nextStop && <div className="mx-auto max-w-2xl space-y-3 px-4 pb-4 md:hidden"><Card><CardHeader><CardTitle>Stop checklist</CardTitle><p className="text-sm text-muted-foreground">Complete required checks before pickup.</p></CardHeader><CardContent className="space-y-2">{nextChecklist.map((item) => <label key={item.id} className="flex items-center gap-3 rounded-lg border p-3 text-sm"><input type="checkbox" checked={item.completed} onChange={() => void toggleChecklist(item)} />{item.label}</label>)}<p className={`text-xs ${checklistReady ? "text-green-700" : "text-amber-700"}`}>{checklistReady ? "Checklist complete" : "Required checks remaining"}</p></CardContent></Card></div>}
     <div className="mx-auto hidden max-w-[1600px] space-y-6 p-6 md:block xl:p-8">
       {notice && <div role="status" className="rounded-lg border border-brand/30 bg-brand-muted px-4 py-3 text-sm text-green-800">{notice}</div>}
       <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">

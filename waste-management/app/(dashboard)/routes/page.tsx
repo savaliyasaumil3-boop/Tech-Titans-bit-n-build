@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, Route, Compass, Play, Square } from "lucide-react";
-import { optimizeRoute } from "@/lib/services/ml-api";
+import { optimizeRoute, fallbackOptimizeRoute } from "@/lib/services/ml-api";
 import type { OptimizedRoute } from "@/lib/db-types";
 import { supabase } from "@/lib/supabase/client";
 
@@ -29,12 +29,14 @@ export default function RoutesPage() {
   const [selectedDriver, setSelectedDriver] = useState("");
   const [drivers, setDrivers] = useState<{ id: string; full_name: string | null; driver_id: string | null; vehicle_id: string | null }[]>([]);
   const [dispatchMessage, setDispatchMessage] = useState<string | null>(null);
+  const [requests, setRequests] = useState<{ id: string; bin_id: string; status: string; assigned_vehicle_id: string | null; required_quantity_kg: number }[]>([]);
 
   const availableVehicles = vehicles.filter(v => v.status === "available" || v.status === "collecting");
 
   useEffect(() => {
     if (!supabase) return;
     void supabase.from("profiles").select("id, full_name, driver_id, vehicle_id").eq("role", "driver").then(({ data }) => setDrivers(data ?? []));
+    void supabase.from("collection_requests").select("id, bin_id, status, assigned_vehicle_id, required_quantity_kg").in("status", ["unassigned", "assigned", "partially_completed"]).then(({ data }) => setRequests(data ?? []));
   }, []);
 
   const handleOptimize = async () => {
@@ -47,7 +49,8 @@ export default function RoutesPage() {
       return;
     }
 
-    const mappedBins = priorityBins.map(pb => {
+    const requestBins = requests.length ? priorityBins.filter((bin) => requests.some((request) => request.bin_id === bin.bin_id && (!request.assigned_vehicle_id || request.assigned_vehicle_id === vehicle.id))) : priorityBins;
+    const mappedBins = requestBins.map(pb => {
       const dbBin = bins.find(b => b.id === pb.bin_id);
       return {
         ...pb,
@@ -69,11 +72,10 @@ export default function RoutesPage() {
       }))
     };
 
-    const route = await optimizeRoute(payload);
+    let route = await optimizeRoute(payload);
     if (!route) {
-      setDispatchMessage("Route planning is unavailable. No route was generated or dispatched.");
-      setIsOptimizing(false);
-      return;
+      route = fallbackOptimizeRoute(vehicle.id, vehicle.vehicle_number, vehicle.capacity_kg - vehicle.current_load_kg, mappedBins);
+      setDispatchMessage("Local route planner used from live bin records; review before dispatch.");
     }
 
     setActiveRoute(route);
@@ -98,6 +100,16 @@ export default function RoutesPage() {
           planned_load_kg: stop.required_collection_kg,
           status: "pending",
         })));
+        if (!stopsError) {
+          await supabase.from("collection_requests").update({ assigned_vehicle_id: vehicle.id, assigned_route_id: routeId, status: "assigned", reservation_kg: route.stops.reduce((total, stop) => total + stop.required_collection_kg, 0), updated_at: new Date().toISOString() }).in("bin_id", route.stops.map((stop) => stop.id)).in("status", ["unassigned", "partially_completed"]);
+          const checklistRows = route.stops.flatMap((stop) => [
+            ["verify_bin", "Verify the bin ID and location"],
+            ["inspect_waste", "Inspect waste type and access safety"],
+            ["record_reading", "Record weight and residual fill"],
+            ["secure_area", "Secure the area before leaving"],
+          ].map(([checklist_key, label]) => ({ id: `${routeId}-${stop.id}-${checklist_key}`, route_plan_id: routeId, route_stop_id: `${routeId}-${stop.id}`, driver_id: selectedDriver, checklist_key, label, is_required: true })));
+          await supabase.from("stop_checklist_items").upsert(checklistRows, { onConflict: "route_stop_id,checklist_key" });
+        }
         setDispatchMessage(stopsError ? stopsError.message : "Assignment dispatched to the selected driver.");
       } else setDispatchMessage(error.message);
     } else if (!selectedDriver) {

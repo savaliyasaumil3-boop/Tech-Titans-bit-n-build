@@ -1,0 +1,1 @@
+CREATE POLICY "drivers create own stop checklists" ON stop_checklist_items FOR INSERT TO authenticated WITH CHECK (driver_id = public.current_driver_id());

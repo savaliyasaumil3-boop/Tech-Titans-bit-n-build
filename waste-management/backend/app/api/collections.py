@@ -11,7 +11,7 @@ router = APIRouter(prefix="/collections", tags=["Collections & Execution"])
 class PickupInput(BaseModel):
     bin_id: str
     vehicle_id: str
-    driver_id: Optional[str] = "DRIVER-01"
+    driver_id: Optional[str] = None
     collected_weight_kg: float = Field(..., ge=0)
     residual_fill_percentage: float = Field(default=0.0, ge=0, le=100)
 
@@ -40,8 +40,11 @@ def complete_bin_pickup(
     pickup_id = f"COL-{payload.bin_id}-{int(datetime.now(timezone.utc).timestamp())}"
 
     # Verify driver assignment ownership if user is driver
-    if payload.driver_id:
-        verify_driver_assignment(user, payload.driver_id)
+    requested_driver_id = payload.driver_id or user.get("driver_id")
+    if user.get("role") == "driver" and not requested_driver_id:
+        raise HTTPException(status_code=400, detail="Authenticated driver profile is not linked to an operational driver ID.")
+    if requested_driver_id:
+        verify_driver_assignment(user, requested_driver_id)
 
     if not supabase:
         return {"status": "success (memory)", "pickup_id": pickup_id, "collected_kg": payload.collected_weight_kg}
@@ -79,7 +82,7 @@ def complete_bin_pickup(
             "id": pickup_id,
             "bin_id": payload.bin_id,
             "vehicle_id": payload.vehicle_id,
-            "driver_id": payload.driver_id,
+            "driver_id": requested_driver_id,
             "collected_weight_kg": payload.collected_weight_kg,
             "residual_fill_percentage": payload.residual_fill_percentage,
             "status": "completed",
