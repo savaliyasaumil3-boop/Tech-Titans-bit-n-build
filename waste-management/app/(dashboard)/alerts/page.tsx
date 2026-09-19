@@ -256,14 +256,14 @@ export default function AlertsPage() {
                     >
                       {alert.message}
                     </p>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1" suppressHydrationWarning>
                       <Clock className="h-3 w-3" />
-                      <span>{new Date(alert.timestamp).toLocaleTimeString([], {
+                      <span suppressHydrationWarning>{new Date(alert.timestamp).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}</span>
                       <span>·</span>
-                      <span>{new Date(alert.timestamp).toLocaleDateString()}</span>
+                      <span suppressHydrationWarning>{new Date(alert.timestamp).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </div>

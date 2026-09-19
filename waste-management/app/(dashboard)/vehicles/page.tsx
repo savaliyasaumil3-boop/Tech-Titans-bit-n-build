@@ -265,13 +265,15 @@ export default function VehiclesPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="text-xs text-muted-foreground" suppressHydrationWarning>
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {new Date(v.lastCollection).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          <span suppressHydrationWarning>
+                            {new Date(v.lastCollection).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="pr-4 text-right">

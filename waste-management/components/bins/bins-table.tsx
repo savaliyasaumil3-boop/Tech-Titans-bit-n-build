@@ -156,7 +156,7 @@ export function BinsTable({
                       {bin.predictedFullHours}h
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
+                  <TableCell className="text-xs text-muted-foreground" suppressHydrationWarning>
                     {new Date(bin.lastUpdated).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",

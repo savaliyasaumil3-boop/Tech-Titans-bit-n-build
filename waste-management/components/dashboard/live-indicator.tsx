@@ -1,11 +1,17 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useLiveData } from "@/components/providers/live-data-provider";
 import { Button } from "@/components/ui/button";
-import { Wifi, WifiOff } from "lucide-react";
+import { WifiOff } from "lucide-react";
 
 export function LiveIndicator() {
   const { lastUpdated, isLive, setIsLive } = useLiveData();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="flex items-center gap-3">
@@ -30,8 +36,8 @@ export function LiveIndicator() {
           </>
         )}
       </Button>
-      <span className="text-xs text-muted-foreground">
-        Updated {lastUpdated.toLocaleTimeString()}
+      <span className="text-xs text-muted-foreground" suppressHydrationWarning>
+        {mounted ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Updated just now"}
       </span>
     </div>
   );
