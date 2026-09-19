@@ -25,7 +25,7 @@ export async function getBins(): Promise<DbBin[]> {
     console.error("getBins error:", error);
     return demoBins;
   }
-  return data ?? demoBins;
+  return (data && data.length > 0) ? data : demoBins;
 }
 
 export async function getBinById(id: string): Promise<DbBin | null> {
@@ -76,7 +76,7 @@ export async function getVehicles(): Promise<DbVehicle[]> {
     console.error("getVehicles error:", error);
     return demoVehicles;
   }
-  return data ?? demoVehicles;
+  return (data && data.length > 0) ? data : demoVehicles;
 }
 
 export async function getVehicleById(id: string): Promise<DbVehicle | null> {
@@ -105,7 +105,7 @@ export async function getAlerts(): Promise<DbAlert[]> {
     console.error("getAlerts error:", error);
     return demoAlerts;
   }
-  return data ?? demoAlerts;
+  return (data && data.length > 0) ? data : demoAlerts;
 }
 
 export async function markAlertRead(id: string): Promise<void> {
@@ -176,7 +176,7 @@ export async function getPredictions(): Promise<DbPrediction[]> {
     console.error("getPredictions error:", error);
     return demoPredictions;
   }
-  return data ?? demoPredictions;
+  return (data && data.length > 0) ? data : demoPredictions;
 }
 
 export async function getPredictionForBin(

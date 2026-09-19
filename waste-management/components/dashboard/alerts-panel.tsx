@@ -30,7 +30,7 @@ function typeIcon(type: string) {
 }
 
 function timeAgo(timestamp: string) {
-  const diff = Date.now() - new Date(timestamp).getTime();
+  const diff = Math.max(0, Date.now() - new Date(timestamp).getTime());
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes}m ago`;
@@ -90,7 +90,7 @@ export function AlertsPanel() {
                       {alert.severity}
                     </span>
                     <span className="text-xs text-muted-foreground">·</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground" suppressHydrationWarning>
                       {timeAgo(alert.created_at)}
                     </span>
                   </div>

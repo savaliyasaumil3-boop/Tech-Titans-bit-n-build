@@ -13,6 +13,8 @@ import type { DbBin, DbVehicle, DbAlert, DbPrediction, PriorityBin } from "@/lib
 import type { BinStatus } from "@/lib/types";
 import { demoBins, demoVehicles, demoAlerts, demoPredictions } from "@/lib/supabase/demo-data";
 import { buildPriorityBins, estimateOverflowProbability } from "@/lib/services/priority-engine";
+import { getBins, getVehicles, getAlerts, getPredictions, markAlertRead } from "@/lib/supabase/queries";
+import { supabase, isDemoMode as configDemoMode } from "@/lib/supabase/client";
 
 // ─── Context Shape ────────────────────────────────────────────────────────────
 
@@ -64,6 +66,67 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const alertCounterRef = useRef(100);
 
   const priorityBins = buildPriorityBins(bins, predictions);
+
+  // ── Initial load from Supabase / Backend when not in demo mode ────────────
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadData() {
+      if (configDemoMode) return;
+      try {
+        const [fetchedBins, fetchedVehicles, fetchedAlerts, fetchedPredictions] =
+          await Promise.all([
+            getBins(),
+            getVehicles(),
+            getAlerts(),
+            getPredictions(),
+          ]);
+
+        if (isMounted) {
+          if (fetchedBins.length > 0) setBins(fetchedBins);
+          if (fetchedVehicles.length > 0) setVehicles(fetchedVehicles);
+          if (fetchedAlerts.length > 0) setAlerts(fetchedAlerts);
+          if (fetchedPredictions.length > 0) setPredictions(fetchedPredictions);
+          setLastUpdated(new Date());
+        }
+      } catch (err) {
+        console.error("Error fetching live data from Supabase:", err);
+      }
+    }
+
+    loadData();
+
+    // Setup Supabase Realtime Subscription if client is available
+    if (supabase && !configDemoMode) {
+      const channel = supabase
+        .channel("realtime-swachhsetu")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "bins" },
+          (payload) => {
+            if (payload.eventType === "UPDATE") {
+              setBins((prev) =>
+                prev.map((b) => (b.id === payload.new.id ? (payload.new as DbBin) : b))
+              );
+              setLastUpdated(new Date());
+            } else if (payload.eventType === "INSERT") {
+              setBins((prev) => [payload.new as DbBin, ...prev]);
+              setLastUpdated(new Date());
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        isMounted = false;
+        supabase?.removeChannel(channel);
+      };
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // ── Simulate bin fill updates every 20-30 seconds ──────────────────────────
   const simulateUpdate = useCallback(() => {
@@ -164,6 +227,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     setAlerts((prev) =>
       prev.map((a) => (a.id === id ? { ...a, is_read: true } : a))
     );
+    if (!configDemoMode) {
+      markAlertRead(id).catch((e) => console.error("Error marking alert as read:", e));
+    }
   }, []);
 
   const refreshData = useCallback(() => {
@@ -181,7 +247,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         isLive,
         setIsLive,
         lastUpdated,
-        isDemoMode: true,
+        isDemoMode: configDemoMode,
         resolveAlert,
         refreshData,
       }}
