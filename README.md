@@ -187,4 +187,3 @@ To set up the live database:
 
 ---
 
-## 📜 License & Acknowledgments
