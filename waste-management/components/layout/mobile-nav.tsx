@@ -56,7 +56,7 @@ export function MobileNav() {
           <SheetHeader className="border-b border-border px-4 py-4">
             <SheetTitle className="flex items-center gap-2 text-lg font-semibold">
               <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--brand)] text-white text-base">
-                ♻
+                <img src="/favicon.svg" alt="logo" />
               </span>
               SwachhSetu
             </SheetTitle>
