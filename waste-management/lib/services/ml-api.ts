@@ -37,7 +37,7 @@ export async function predictFill(
 // ─── Waste Vision Classification ────────────────────────────────────────────────
 
 export interface WasteClassificationResult {
-  category: "Plastic" | "Organic" | "Metal" | "Paper" | "Glass" | "E-Waste" | "Other";
+  category: "Plastic" | "Organic" | "Metal" | "Paper" | "Glass" | "E-Waste" | "Other" | "Unavailable" | "Unknown";
   confidence: number;
   filename: string;
   image_dimensions: string;
@@ -46,8 +46,12 @@ export interface WasteClassificationResult {
   carbonOffset: string;
   decompositionTime: string;
   tips: string;
+  is_valid?: boolean;
+  error_detail?: string;
+  error?: string;
   all_scores?: Record<string, number>;
 }
+
 
 export async function classifyWaste(file: File): Promise<WasteClassificationResult | null> {
   try {

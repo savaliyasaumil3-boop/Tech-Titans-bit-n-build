@@ -20,7 +20,7 @@ import { classifyWaste, type WasteClassificationResult } from "@/lib/services/ml
 interface SampleItem {
   id: string;
   name: string;
-  category: "Plastic" | "Organic" | "Metal" | "Paper" | "E-Waste" | "Glass" | "Other";
+  category: "Plastic" | "Organic" | "Metal" | "Paper" | "E-Waste" | "Glass" | "Other" | "Unavailable" | "Unknown";
   confidence: number;
   recyclability: string;
   recommendedBin: string;
@@ -29,6 +29,7 @@ interface SampleItem {
   tips: string;
   emoji: string;
 }
+
 
 const CATEGORY_EMOJIS: Record<string, string> = {
   Plastic: "🧴",
@@ -131,10 +132,10 @@ export default function WasteClassificationPage() {
 
     const apiRes = await classifyWaste(file);
 
-    if (apiRes) {
+    if (apiRes && apiRes.is_valid !== false && apiRes.category !== "Unavailable") {
       setSelectedItem({
         id: `upload-${Date.now()}`,
-        name: `Uploaded ${file.name} (${apiRes.image_dimensions})`,
+        name: `Uploaded Specimen: ${file.name} (${apiRes.image_dimensions || 'Verified'})`,
         category: apiRes.category,
         confidence: apiRes.confidence,
         recyclability: apiRes.recyclability,
@@ -145,23 +146,25 @@ export default function WasteClassificationPage() {
         emoji: CATEGORY_EMOJIS[apiRes.category] || "🗑️",
       });
     } else {
-      // Fallback if API is offline
+      // Display honest error state when classification fails or image is unparseable
+      const errorMsg = apiRes?.error_detail || apiRes?.error || "Neural classifier backend service unreachable or file unparseable.";
       setSelectedItem({
-        id: `upload-${Date.now()}`,
-        name: `Uploaded Specimen: ${file.name}`,
-        category: "Plastic",
-        confidence: 94.2,
-        recyclability: "Type 5 PP Recyclable Container",
-        recommendedBin: "Blue Smart Bin (Plastics & Dry)",
-        carbonOffset: "0.28 kg CO₂ saved",
-        decompositionTime: "20 to 50 Years",
-        tips: "Wipe residue before depositing to prevent batch contamination.",
-        emoji: "🧴",
+        id: `upload-err-${Date.now()}`,
+        name: `Upload Failed: ${file.name}`,
+        category: "Other",
+        confidence: 0.0,
+        recyclability: "Classification Unavailable",
+        recommendedBin: "Manual Inspection Required",
+        carbonOffset: "0.0 kg CO₂",
+        decompositionTime: "Unknown",
+        tips: `Honest Status: ${errorMsg}`,
+        emoji: "⚠️",
       });
     }
 
     setIsScanning(false);
   };
+
 
   return (
     <>

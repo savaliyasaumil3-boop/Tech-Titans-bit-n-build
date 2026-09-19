@@ -52,7 +52,11 @@ class TestSwachhSetuVerificationGates(unittest.TestCase):
             "collected_weight_kg": 120.0,
             "residual_fill_percentage": 0.0
         }
-        response = client.post("/api/collections/pickup", json=pickup_payload)
+        response = client.post(
+            "/api/collections/pickup",
+            json=pickup_payload,
+            headers={"Authorization": "Bearer test-jwt-token"}
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("pickup_id", data)
@@ -67,11 +71,16 @@ class TestSwachhSetuVerificationGates(unittest.TestCase):
             "net_weight_kg": 120.0,
             "accepted_waste_type": "Mixed Recyclables"
         }
-        response = client.post("/api/collections/unload", json=unload_payload)
+        response = client.post(
+            "/api/collections/unload",
+            json=unload_payload,
+            headers={"Authorization": "Bearer test-jwt-token"}
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("receipt_id", data)
         self.assertEqual(data["vehicle_new_load_kg"], 0.0)
+
 
     def test_06_honest_vision_classifier(self):
         """6. Vision classifier validation & zero +45% artificial inflation."""

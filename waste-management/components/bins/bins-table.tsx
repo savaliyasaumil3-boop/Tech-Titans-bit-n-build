@@ -176,11 +176,15 @@ export function BinsTable({
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs gap-1"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDetails(bin);
+                        }}
                       >
                         <Truck className="h-3 w-3" />
                         Collect
                       </Button>
+
                     </div>
                   </TableCell>
                 </TableRow>

@@ -62,8 +62,6 @@ def ingest_telemetry(bin_id: str, payload: TelemetryInput):
     # Status determination
     if payload.fill_percentage >= 80:
         status = "critical"
-    elif payload.fill_percentage >= 50:
-        status = "warning"
     else:
         status = "healthy"
 
@@ -71,20 +69,28 @@ def ingest_telemetry(bin_id: str, payload: TelemetryInput):
     existing_bin = None
     if supabase:
         try:
-            b_res = supabase.table("bins").select("*").eq("id", bin_id).maybeSingle().execute()
-            existing_bin = b_res.data
+            b_res = supabase.table("bins").select("*").eq("id", bin_id).limit(1).execute()
+            existing_bin = b_res.data[0] if (b_res.data and len(b_res.data) > 0) else None
         except Exception:
             pass
+
 
     capacity = existing_bin.get("capacity_kg", 200.0) if existing_bin else 200.0
     waste_type = existing_bin.get("waste_type", "Plastic") if existing_bin else "Plastic"
     prev_fill = existing_bin.get("fill_percentage", 0.0) if existing_bin else 0.0
 
+
+    # Noise filter check: Ignore minor oscillations <= ±2% fill variance
+    fill_delta = payload.fill_percentage - prev_fill
+    if abs(fill_delta) <= 2.0:
+        fill_delta = 0.0
+
     current_fill_kg = payload.current_fill_kg if payload.current_fill_kg is not None else round((payload.fill_percentage / 100.0) * capacity, 1)
 
+
     pred_hours = predict_fill_hours(payload.fill_percentage, capacity)
-    overflow_prob = estimate_overflow_probability(payload.fill_percentage)
-    priority_res = calculate_priority_score(payload.fill_percentage, pred_hours, overflow_prob, waste_type)
+    overflow_risk = estimate_overflow_probability(payload.fill_percentage)
+    priority_res = calculate_priority_score(payload.fill_percentage, pred_hours, overflow_risk, waste_type)
     priority_score = priority_res["priority_score"] if isinstance(priority_res, dict) else int(priority_res)
 
     update_payload = {
@@ -96,31 +102,32 @@ def ingest_telemetry(bin_id: str, payload: TelemetryInput):
         "last_updated": now_str,
     }
 
-
     if supabase:
         # Update bin record
         supabase.table("bins").update(update_payload).eq("id", bin_id).execute()
 
-        # 1. Log reading into `observations` table
+        # 1. Log reading into `observations` table with provenance metadata
         try:
             obs_payload = {
                 "id": f"OBS-{bin_id}-{int(datetime.now(timezone.utc).timestamp())}",
                 "bin_id": bin_id,
                 "fill_percentage": payload.fill_percentage,
-                "measured_weight_kg": current_fill_kg,
+                "measured_weight_kg": payload.current_fill_kg,
+                "estimated_weight_kg": current_fill_kg if payload.current_fill_kg is None else None,
+                "estimation_method": "direct_sensor_reading" if payload.current_fill_kg is not None else "sensor_volumetric_density_estimate",
                 "battery_percentage": payload.battery_percentage,
                 "temperature_c": payload.temperature_c,
                 "source_type": payload.source_type or "ultrasonic_sensor",
+                "data_quality_flags": {"valid": True, "filtered_noise": abs(payload.fill_percentage - prev_fill) <= 2.0},
                 "observed_at": now_str,
                 "received_at": now_str
             }
             supabase.table("observations").insert(obs_payload).execute()
-        except Exception as e:
-            pass # Table may be pending migration in deployment
+        except Exception:
+            pass # Pending migration
 
-        # 2. Derive generated waste ONLY if fill percentage increased
-        fill_delta = payload.fill_percentage - prev_fill
-        if fill_delta > 0:
+        # 2. Derive generated waste ONLY if fill percentage increased beyond noise threshold (+2%)
+        if fill_delta > 2.0:
             generated_delta_kg = round((fill_delta / 100.0) * capacity, 1)
             try:
                 waste_rec = {
@@ -131,7 +138,7 @@ def ingest_telemetry(bin_id: str, payload: TelemetryInput):
                     "recorded_at": now_str
                 }
                 supabase.table("waste_records").insert(waste_rec).execute()
-            except Exception as e:
+            except Exception:
                 pass
 
         # 3. Auto-create overflow alert if critical
@@ -142,29 +149,25 @@ def ingest_telemetry(bin_id: str, payload: TelemetryInput):
                 "vehicle_id": None,
                 "type": "overflow",
                 "severity": "critical",
-                "message": f"Bin {bin_id} at {existing_bin.get('location_name', bin_id) if existing_bin else bin_id} reached {payload.fill_percentage}% — immediate collection required.",
+                "message": f"Bin {bin_id} reached {payload.fill_percentage}% — immediate collection required.",
                 "is_read": False,
                 "created_at": now_str
             }
-            supabase.table("alerts").insert(alert_payload).execute()
+            try:
+                supabase.table("alerts").insert(alert_payload).execute()
+            except Exception:
+                pass
 
-        # 4. Auto-create high_generation alert if sudden spike (+25% jump)
-        if fill_delta >= 25.0:
-            high_gen_alert = {
-                "id": f"ALT-HIGHGEN-{int(datetime.now(timezone.utc).timestamp())}",
-                "bin_id": bin_id,
-                "vehicle_id": None,
-                "type": "high_generation",
-                "severity": "warning",
-                "message": f"High waste generation detected at {bin_id} ({existing_bin.get('location_name', bin_id) if existing_bin else bin_id}): +{round(fill_delta, 1)}% surge.",
-                "is_read": False,
-                "created_at": now_str
-            }
-            supabase.table("alerts").insert(high_gen_alert).execute()
-
-        return {"status": "success", "bin_id": bin_id, "updated": update_payload, "fill_delta_kg": round((max(0, fill_delta)/100.0)*capacity, 1)}
+        return {
+            "status": "success",
+            "bin_id": bin_id,
+            "updated": update_payload,
+            "fill_delta_kg": round((max(0, fill_delta)/100.0)*capacity, 1),
+            "priority_breakdown": priority_res.get("breakdown") if isinstance(priority_res, dict) else None
+        }
 
     return {"status": "success (memory)", "bin_id": bin_id, "updated": update_payload}
+
 
 @router.patch("/{bin_id}")
 def update_bin(bin_id: str, payload: BinUpdateInput):

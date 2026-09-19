@@ -160,8 +160,35 @@ export function BinDetailsDrawer({
               <Truck className="h-4 w-4" />
               Optimize Route
             </Button>
-            <Button className="font-semibold text-white bg-brand hover:bg-brand/90 hover:text-white px-8">
-              Collect
+            <Button
+              className="font-semibold text-white bg-brand hover:bg-brand/90 hover:text-white px-8"
+              onClick={async () => {
+                try {
+                  const res = await fetch("http://127.0.0.1:8000/api/collections/pickup", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      bin_id: bin.id,
+                      vehicle_id: "VEH-001",
+                      driver_id: "DRIVER-01",
+                      collected_weight_kg: bin.current_fill_kg || 40.0,
+                      residual_fill_percentage: 0.0
+                    })
+                  });
+                  if (res.ok) {
+                    alert(`Bin ${bin.id} collection pickup completed successfully!`);
+                    onOpenChange(false);
+                    window.location.reload();
+                  } else {
+                    const err = await res.json();
+                    alert(`Pickup Failed: ${err.detail || 'Server error'}`);
+                  }
+                } catch (e) {
+                  alert(`Pickup Request Failed: ${e}`);
+                }
+              }}
+            >
+              Confirm Collect
             </Button>
           </div>
         </div>
@@ -169,3 +196,4 @@ export function BinDetailsDrawer({
     </Sheet>
   );
 }
+
