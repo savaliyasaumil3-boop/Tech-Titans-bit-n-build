@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import { BinMarker } from "./bin-marker";
 import { MapLegend } from "./map-legend";
@@ -19,15 +20,21 @@ interface MapViewProps {
 
 function FitBounds({ bins, dbBins }: { bins?: SmartBin[]; dbBins?: DbBin[] }) {
   const map = useMap();
+  const hasFittedRef = useRef(false);
 
-  const positions: [number, number][] = [
-    ...(bins?.map((b) => [b.lat, b.lng] as [number, number]) ?? []),
-    ...(dbBins?.map((b) => [b.latitude, b.longitude] as [number, number]) ?? []),
-  ];
+  useEffect(() => {
+    if (hasFittedRef.current) return;
 
-  if (positions.length > 0) {
-    map.fitBounds(positions, { padding: [30, 30], maxZoom: 14 });
-  }
+    const positions: [number, number][] = [
+      ...(bins?.map((b) => [b.lat, b.lng] as [number, number]) ?? []),
+      ...(dbBins?.map((b) => [b.latitude, b.longitude] as [number, number]) ?? []),
+    ];
+
+    if (positions.length > 0) {
+      map.fitBounds(positions, { padding: [30, 30], maxZoom: 14 });
+      hasFittedRef.current = true;
+    }
+  }, [map, bins, dbBins]);
 
   return null;
 }

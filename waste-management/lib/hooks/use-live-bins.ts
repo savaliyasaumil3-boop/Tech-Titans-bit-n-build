@@ -32,8 +32,9 @@ export function useLiveBins(initialBins: SmartBin[]) {
   const simulateUpdate = useCallback(() => {
     setBins((prev) => {
       const updated = [...prev];
+      if (updated.length === 0) return prev;
       // Randomly pick 2-4 bins to update
-      const count = Math.floor(Math.random() * 3) + 2;
+      const count = Math.min(updated.length, Math.floor(Math.random() * 3) + 2);
       const indices = new Set<number>();
 
       while (indices.size < count) {

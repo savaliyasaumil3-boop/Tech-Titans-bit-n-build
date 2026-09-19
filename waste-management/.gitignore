@@ -25,3 +25,4 @@ yarn-error.log*
 .pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
+null

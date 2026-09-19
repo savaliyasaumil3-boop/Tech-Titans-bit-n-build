@@ -25,10 +25,13 @@ class Settings(BaseSettings):
     # CORS
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     CORS_ORIGINS: list[str] = [
-        os.getenv("FRONTEND_URL", "http://localhost:3000"),
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "*"
+        origin.strip() for origin in [
+            os.getenv("FRONTEND_URL", "http://localhost:3000"),
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+        ] if origin.strip() and origin.strip() != "*"
     ]
 
     class Config:

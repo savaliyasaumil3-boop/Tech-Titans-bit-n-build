@@ -174,7 +174,11 @@ def update_bin(bin_id: str, payload: BinUpdateInput):
     supabase = get_supabase()
     if not supabase:
         raise HTTPException(status_code=503, detail="Database not configured")
-    data = {k: v for k, v in payload.dict().items() if v is not None}
+    # Pydantic v2 modern dump
+    if hasattr(payload, "model_dump"):
+        data = payload.model_dump(exclude_unset=True)
+    else:
+        data = {k: v for k, v in payload.dict().items() if v is not None}
     data["last_updated"] = datetime.now(timezone.utc).isoformat()
     res = supabase.table("bins").update(data).eq("id", bin_id).execute()
     return res.data

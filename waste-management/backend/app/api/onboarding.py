@@ -35,7 +35,7 @@ def validate_csv_preview(
         raise HTTPException(status_code=400, detail="Only .csv files are supported for onboarding.")
 
     try:
-        content = file.file.read().decode("utf-8")
+        content = file.file.read().decode("utf-8-sig", errors="replace")
         reader = csv.DictReader(io.StringIO(content))
         
         valid_rows = []
@@ -105,7 +105,7 @@ def commit_csv_import(
         raise HTTPException(status_code=400, detail="Only .csv files are supported for onboarding.")
 
     try:
-        content = file.file.read().decode("utf-8")
+        content = file.file.read().decode("utf-8-sig", errors="replace")
         reader = csv.DictReader(io.StringIO(content))
         
         rows_to_insert = []

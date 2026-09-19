@@ -234,6 +234,7 @@ def optimize_waste_collection_route(
 
     total_distance_km = round(total_dist_meters / 1000.0, 1)
     total_collection_kg = round(sum(s["required_collection_kg"] for s in assigned_stops), 1)
+    curr_capacity = max(0.0, round(remaining_capacity - total_collection_kg, 1))
     estimated_time_minutes = int((total_distance_km / 28.0) * 60 + len(assigned_stops) * 6)
 
     route_nodes = ["DEPOT"] + [s["id"] for s in assigned_stops] + ["DEPOT"]
@@ -246,7 +247,7 @@ def optimize_waste_collection_route(
         "total_distance_km": total_distance_km,
         "estimated_time_minutes": estimated_time_minutes,
         "total_collection_kg": total_collection_kg,
-        "remaining_vehicle_capacity_kg": round(curr_capacity, 1),
+        "remaining_vehicle_capacity_kg": curr_capacity,
         "stops_count": len(assigned_stops),
         "unassigned_count": len(unassigned_bins),
         "unassigned_bins": unassigned_bins,

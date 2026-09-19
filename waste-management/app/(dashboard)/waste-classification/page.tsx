@@ -138,6 +138,9 @@ export default function WasteClassificationPage() {
 
     setIsScanning(true);
     setCustomUploaded(true);
+    if (uploadedPreview) {
+      URL.revokeObjectURL(uploadedPreview);
+    }
     const objectUrl = URL.createObjectURL(file);
     setUploadedPreview(objectUrl);
 

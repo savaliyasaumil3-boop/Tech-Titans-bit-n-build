@@ -167,9 +167,13 @@ export function BinDetailsDrawer({
               className="font-semibold text-white bg-brand hover:bg-brand/90 hover:text-white px-8"
               onClick={async () => {
                 try {
-                  const res = await fetch("http://127.0.0.1:8000/api/collections/pickup", {
+                  const baseUrl = process.env.NEXT_PUBLIC_ML_API_URL || "http://localhost:8000";
+                  const res = await fetch(`${baseUrl}/api/collections/pickup`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": "Bearer test-jwt-token",
+                    },
                     body: JSON.stringify({
                       bin_id: bin.id,
                       vehicle_id: "VEH-001",

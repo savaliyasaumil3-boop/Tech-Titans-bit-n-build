@@ -81,8 +81,7 @@ def predict_fill_endpoint(req: PredictFillRequest):
 @router.post("/ml/optimize-route")
 @router.post("/ml/routes/optimize")
 def optimize_route_endpoint(req: OptimizeRouteRequest):
-
-    bins_data = [b.dict() for b in req.bins]
+    bins_data = [b.model_dump() if hasattr(b, "model_dump") else b.dict() for b in req.bins]
     v_num = req.vehicle_number or f"GJ-01-{req.vehicle_id}"
     return optimize_waste_collection_route(
         vehicle_id=req.vehicle_id,
