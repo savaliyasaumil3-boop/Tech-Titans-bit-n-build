@@ -59,7 +59,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           collapsed && "justify-center px-0"
         )}
       >
-        <span className="text-xl leading-none select-none">♻</span>
+        <span className="text-xl leading-none select-none"><img src="/favicon.svg" alt="logo" width={60} /></span>
         {!collapsed && (
           <span
             className="text-base font-semibold tracking-tight"
