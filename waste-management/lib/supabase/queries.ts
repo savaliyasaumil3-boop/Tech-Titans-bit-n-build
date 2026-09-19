@@ -23,9 +23,9 @@ export async function getBins(): Promise<DbBin[]> {
     .order("priority_score", { ascending: false });
   if (error) {
     console.error("getBins error:", error);
-    return demoBins;
+    return [];
   }
-  return (data && data.length > 0) ? data : demoBins;
+  return data ?? [];
 }
 
 export async function getBinById(id: string): Promise<DbBin | null> {
@@ -37,7 +37,7 @@ export async function getBinById(id: string): Promise<DbBin | null> {
     .maybeSingle();
   if (error) {
     console.error("getBinById error:", error);
-    return demoBins.find((b) => b.id === id) ?? null;
+    return null;
   }
   return data;
 }
@@ -47,7 +47,6 @@ export async function updateBin(
   updates: Partial<DbBin>
 ): Promise<DbBin | null> {
   if (isDemoMode) {
-    // In demo mode, just return merged bin (caller handles state)
     const bin = demoBins.find((b) => b.id === id);
     return bin ? { ...bin, ...updates } : null;
   }
@@ -74,9 +73,9 @@ export async function getVehicles(): Promise<DbVehicle[]> {
     .order("id");
   if (error) {
     console.error("getVehicles error:", error);
-    return demoVehicles;
+    return [];
   }
-  return (data && data.length > 0) ? data : demoVehicles;
+  return data ?? [];
 }
 
 export async function getVehicleById(id: string): Promise<DbVehicle | null> {
@@ -88,7 +87,7 @@ export async function getVehicleById(id: string): Promise<DbVehicle | null> {
     .maybeSingle();
   if (error) {
     console.error("getVehicleById error:", error);
-    return demoVehicles.find((v) => v.id === id) ?? null;
+    return null;
   }
   return data;
 }
@@ -103,14 +102,17 @@ export async function getAlerts(): Promise<DbAlert[]> {
     .order("created_at", { ascending: false });
   if (error) {
     console.error("getAlerts error:", error);
-    return demoAlerts;
+    return [];
   }
-  return (data && data.length > 0) ? data : demoAlerts;
+  return data ?? [];
 }
 
 export async function markAlertRead(id: string): Promise<void> {
   if (isDemoMode) return;
-  await supabase!.from("alerts").update({ is_read: true }).eq("id", id);
+  const { error } = await supabase!.from("alerts").update({ is_read: true }).eq("id", id);
+  if (error) {
+    console.error("markAlertRead error:", error);
+  }
 }
 
 // ─── Waste History ───────────────────────────────────────────────────────────
@@ -120,15 +122,13 @@ export async function getWasteHistory(
   days = 30
 ): Promise<DbWasteRecord[]> {
   if (isDemoMode) {
-    // Import demo records lazily
     const { demoWasteRecords } = await import("./demo-data");
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    const filtered = demoWasteRecords.filter((r) => {
+    return demoWasteRecords.filter((r) => {
       if (binId && r.bin_id !== binId) return false;
       return new Date(r.recorded_at) >= cutoff;
     });
-    return filtered;
   }
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
@@ -174,9 +174,9 @@ export async function getPredictions(): Promise<DbPrediction[]> {
     .order("prediction_created_at", { ascending: false });
   if (error) {
     console.error("getPredictions error:", error);
-    return demoPredictions;
+    return [];
   }
-  return (data && data.length > 0) ? data : demoPredictions;
+  return data ?? [];
 }
 
 export async function getPredictionForBin(
@@ -192,7 +192,7 @@ export async function getPredictionForBin(
     .maybeSingle();
   if (error) {
     console.error("getPredictionForBin error:", error);
-    return demoPredictions.find((p) => p.bin_id === binId) ?? null;
+    return null;
   }
   return data;
 }

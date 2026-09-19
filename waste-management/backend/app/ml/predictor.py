@@ -12,117 +12,170 @@ WASTE_TYPE_WEIGHTS: Dict[str, float] = {
     "Other": 1.0,
 }
 
-def estimate_overflow_probability(fill_percentage: float) -> float:
-    """Estimates the probability of overflow within the next 6 hours."""
-    if fill_percentage >= 95:
-        return 0.95
+# Configurable Default Priority Weights (Must sum to 100)
+DEFAULT_PRIORITY_WEIGHTS = {
+    "w_fill": 40.0,       # 40% fill percentage weight
+    "w_forecast": 30.0,   # 30% forecast urgency weight
+    "w_risk": 15.0,       # 15% overflow risk score weight
+    "w_waste_type": 10.0, # 10% waste category multiplier
+    "w_service_age": 5.0  # 5% anti-starvation age boost
+}
+
+def estimate_overflow_risk_score(fill_percentage: float) -> float:
+    """Estimates the uncalibrated overflow risk score (0-1.0 scale)."""
+    if fill_percentage >= 100:
+        return 1.0
     if fill_percentage >= 90:
-        return round(0.80 + (fill_percentage - 90) * 0.015, 2)
+        return round(0.80 + (fill_percentage - 90) * 0.02, 2)
     if fill_percentage >= 75:
-        return round(0.35 + (fill_percentage - 75) * 0.030, 2)
+        return round(0.35 + (fill_percentage - 75) * 0.03, 2)
     if fill_percentage >= 50:
         return round(0.05 + (fill_percentage - 50) * 0.012, 2)
     return round(fill_percentage * 0.001, 3)
 
+# Backwards compatibility alias
+estimate_overflow_probability = estimate_overflow_risk_score
+
+
 def predict_fill_hours(fill_percentage: float, capacity_kg: float, avg_daily_generation_kg: float = 15.0) -> float:
-    """Predicts hours until a bin reaches 100% capacity using rate heuristic."""
+    """Predicts hours until a bin reaches 100% capacity using baseline rate."""
+    if fill_percentage >= 100:
+        return 0.0
     remaining_capacity_kg = capacity_kg * (1 - fill_percentage / 100.0)
     hourly_rate = avg_daily_generation_kg / 24.0
-    if hourly_rate <= 0 or remaining_capacity_kg <= 0:
-        return 0.5
+    if hourly_rate <= 0:
+        return 999.0 # Beyond planning horizon
+    if remaining_capacity_kg <= 0:
+        return 0.0
     hours = remaining_capacity_kg / hourly_rate
-    return round(max(0.5, hours), 1)
+    return round(max(0.0, hours), 1)
 
 def predict_fill_hours_from_history(
     fill_percentage: float,
     capacity_kg: float,
-    waste_records: Optional[List[Dict[str, Any]]] = None,
+    observations: Optional[List[Dict[str, Any]]] = None,
     default_avg_daily_kg: float = 15.0
 ) -> Dict[str, Any]:
     """
-    Predicts fill hours based on historical waste records if available,
-    otherwise uses heuristic. Returns prediction metadata detailing method used.
+    Predicts fill hours based on historical observation records if available,
+    otherwise uses cold-start baseline rate estimator.
     """
-    remaining_capacity_kg = capacity_kg * (1 - fill_percentage / 100.0)
-    if remaining_capacity_kg <= 0:
+    if fill_percentage >= 100:
         return {
-            "predicted_full_hours": 0.5,
-            "method": "instant_overflow",
-            "daily_rate_kg": default_avg_daily_kg
+            "predicted_full_hours": 0.0,
+            "method": "full_capacity_reached",
+            "daily_rate_kg": 0.0,
+            "status": "full"
         }
 
-    if waste_records and len(waste_records) >= 3:
-        # Calculate daily generation rate from historical records
-        total_weight = sum(r.get("weight_kg", 0) for r in waste_records)
-        dates = []
-        for r in waste_records:
+    remaining_capacity_kg = capacity_kg * (1 - fill_percentage / 100.0)
+
+    if observations and len(observations) >= 3:
+        # Sort chronologically by observed_at
+        valid_obs = [o for o in observations if o.get("fill_percentage") is not None]
+        if len(valid_obs) >= 2:
             try:
-                dt_str = r.get("recorded_at", "")
-                if dt_str:
-                    dates.append(datetime.fromisoformat(dt_str.replace("Z", "+00:00")))
+                valid_obs.sort(key=lambda x: str(x.get("observed_at", "")))
+                t_first = datetime.fromisoformat(str(valid_obs[0]["observed_at"]).replace("Z", "+00:00"))
+                t_last = datetime.fromisoformat(str(valid_obs[-1]["observed_at"]).replace("Z", "+00:00"))
+                delta_days = (t_last - t_first).total_seconds() / 86400.0
+                delta_fill = valid_obs[-1]["fill_percentage"] - valid_obs[0]["fill_percentage"]
+                
+                if delta_days > 0.01 and delta_fill > 0:
+                    daily_fill_rate = delta_fill / delta_days
+                    daily_kg_rate = (daily_fill_rate / 100.0) * capacity_kg
+                    hourly_fill_rate = daily_fill_rate / 24.0
+                    
+                    remaining_fill = 100.0 - fill_percentage
+                    hours_rem = remaining_fill / hourly_fill_rate if hourly_fill_rate > 0 else 999.0
+                    
+                    return {
+                        "predicted_full_hours": round(max(0.0, hours_rem), 1),
+                        "method": "observation_time_series_trend",
+                        "daily_rate_kg": round(daily_kg_rate, 2),
+                        "sample_count": len(valid_obs),
+                        "status": "forecasted"
+                    }
+                elif delta_fill <= 0:
+                    return {
+                        "predicted_full_hours": 999.0,
+                        "method": "zero_growth_observation",
+                        "daily_rate_kg": 0.0,
+                        "status": "beyond_horizon"
+                    }
             except Exception:
                 pass
-        
-        if len(dates) >= 2:
-            dates.sort()
-            span_days = max(1.0, (dates[-1] - dates[0]).total_seconds() / 86400.0)
-            daily_rate = total_weight / span_days
-            if daily_rate > 0:
-                hourly_rate = daily_rate / 24.0
-                hours = remaining_capacity_kg / hourly_rate
-                return {
-                    "predicted_full_hours": round(max(0.5, hours), 1),
-                    "method": "historical_time_series_trend",
-                    "daily_rate_kg": round(daily_rate, 2),
-                    "sample_records_count": len(waste_records)
-                }
 
-    # Fallback heuristic
+    # Cold-start baseline estimator fallback
     hourly_rate = default_avg_daily_kg / 24.0
-    hours = remaining_capacity_kg / hourly_rate
+    hours = remaining_capacity_kg / hourly_rate if hourly_rate > 0 else 999.0
     return {
-        "predicted_full_hours": round(max(0.5, hours), 1),
-        "method": "heuristic_fallback",
-        "daily_rate_kg": default_avg_daily_kg
+        "predicted_full_hours": round(max(0.0, hours), 1),
+        "method": "cold_start_rate_baseline",
+        "daily_rate_kg": default_avg_daily_kg,
+        "status": "estimated"
     }
 
 def calculate_priority_score(
     fill_percentage: float,
     predicted_full_hours: float,
-    overflow_probability: float,
-    waste_type: str
-) -> int:
+    overflow_risk_score: float,
+    waste_type: str,
+    last_collected_hours_ago: float = 0.0,
+    custom_weights: Optional[Dict[str, float]] = None
+) -> Dict[str, Any]:
     """
-    Priority Scoring Engine (0-100 scale):
-      40% fill percentage
-      30% time to overflow (lower hours = higher score)
-      20% overflow probability
-      10% waste type urgency
+    Explainable Priority & Anti-Starvation Scoring Engine (0-100 scale):
+    Combines normalized weights with service-age boost and location sensitivity.
     """
-    # 1. Fill component (0-40)
-    fill_score = (fill_percentage / 100.0) * 40.0
+    weights = custom_weights or DEFAULT_PRIORITY_WEIGHTS
+    w_fill = weights.get("w_fill", 40.0)
+    w_forecast = weights.get("w_forecast", 30.0)
+    w_risk = weights.get("w_risk", 15.0)
+    w_waste = weights.get("w_waste_type", 10.0)
+    w_age = weights.get("w_service_age", 5.0)
 
-    # 2. Time component (0-30)
-    if predicted_full_hours <= 2:
-        time_score = 30.0
-    elif predicted_full_hours <= 6:
-        time_score = 24.0
+    # 1. Fill component (0 - w_fill)
+    fill_component = (min(100.0, fill_percentage) / 100.0) * w_fill
+
+    # 2. Forecast Urgency component (0 - w_forecast)
+    if predicted_full_hours <= 0:
+        forecast_component = w_forecast
+    elif predicted_full_hours <= 4:
+        forecast_component = w_forecast * 0.90
     elif predicted_full_hours <= 12:
-        time_score = 16.0
+        forecast_component = w_forecast * 0.60
     elif predicted_full_hours <= 24:
-        time_score = 8.0
+        forecast_component = w_forecast * 0.30
     else:
-        time_score = max(0.0, 4.0 - predicted_full_hours / 10.0)
+        forecast_component = max(0.0, w_forecast * (1.0 - predicted_full_hours / 72.0))
 
-    # 3. Overflow probability component (0-20)
-    prob_score = overflow_probability * 20.0
+    # 3. Overflow Risk Component (0 - w_risk)
+    risk_component = min(1.0, max(0.0, overflow_risk_score)) * w_risk
 
-    # 4. Waste type urgency (0-10)
+    # 4. Waste Type Urgency Component (0 - w_waste)
     multiplier = WASTE_TYPE_WEIGHTS.get(waste_type, 1.0)
-    waste_score = 5.0 * multiplier
+    waste_component = min(w_waste, (w_waste * 0.7) * multiplier)
 
-    raw = fill_score + time_score + prob_score + waste_score
-    return min(100, max(0, round(raw)))
+    # 5. Service Age Anti-Starvation Boost (0 - w_age + bonus for > 72h)
+    age_ratio = min(1.0, last_collected_hours_ago / 72.0)
+    age_component = age_ratio * w_age
+    if last_collected_hours_ago > 72.0:
+        # Anti-starvation boost: add extra 5 points for long-neglected bins
+        age_component += min(10.0, (last_collected_hours_ago - 72.0) / 24.0 * 2.0)
+
+    total_score = min(100, max(0, round(fill_component + forecast_component + risk_component + waste_component + age_component)))
+
+    return {
+        "priority_score": total_score,
+        "breakdown": {
+            "fill_component": round(fill_component, 1),
+            "forecast_component": round(forecast_component, 1),
+            "risk_component": round(risk_component, 1),
+            "waste_component": round(waste_component, 1),
+            "age_component": round(age_component, 1)
+        }
+    }
 
 def get_priority_category(score: int) -> str:
     if score >= 80:
@@ -132,3 +185,4 @@ def get_priority_category(score: int) -> str:
     if score >= 25:
         return "medium"
     return "low"
+

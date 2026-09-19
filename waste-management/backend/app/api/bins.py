@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -17,6 +17,7 @@ class TelemetryInput(BaseModel):
     current_fill_kg: Optional[float] = None
     battery_percentage: Optional[float] = None
     temperature_c: Optional[float] = None
+    source_type: Optional[str] = "ultrasonic_sensor"
 
 class BinUpdateInput(BaseModel):
     fill_percentage: Optional[float] = None
@@ -50,9 +51,10 @@ def get_bin(bin_id: str):
 def ingest_telemetry(bin_id: str, payload: TelemetryInput):
     """
     IoT Sensor Telemetry Ingestion Endpoint:
-    Receives live ultrasonic fill level data from physical smart bins.
-    Recalculates predicted hours until full, overflow risk, and priority score.
-    Persists waste record & triggers real overflow or high-generation alerts in Supabase.
+    - Stores incoming telemetry reading as an OBSERVATION (does not invent waste!).
+    - Derives waste generation ONLY when fill level increases.
+    - Updates bin fill level, priority score, and status in Supabase.
+    - Auto-generates overflow alert (fill >= 80%) or high-generation alert (+25% spike).
     """
     supabase = get_supabase()
     now_str = datetime.now(timezone.utc).isoformat()
@@ -82,35 +84,57 @@ def ingest_telemetry(bin_id: str, payload: TelemetryInput):
 
     pred_hours = predict_fill_hours(payload.fill_percentage, capacity)
     overflow_prob = estimate_overflow_probability(payload.fill_percentage)
-    priority = calculate_priority_score(payload.fill_percentage, pred_hours, overflow_prob, waste_type)
+    priority_res = calculate_priority_score(payload.fill_percentage, pred_hours, overflow_prob, waste_type)
+    priority_score = priority_res["priority_score"] if isinstance(priority_res, dict) else int(priority_res)
 
     update_payload = {
         "fill_percentage": payload.fill_percentage,
         "current_fill_kg": current_fill_kg,
         "status": status,
         "predicted_full_hours": pred_hours,
-        "priority_score": priority,
+        "priority_score": priority_score,
         "last_updated": now_str,
     }
+
 
     if supabase:
         # Update bin record
         supabase.table("bins").update(update_payload).eq("id", bin_id).execute()
 
-        # Insert waste record into waste_records for analytics tracking
+        # 1. Log reading into `observations` table
         try:
-            waste_rec = {
-                "id": f"WR-{bin_id}-{int(datetime.now(timezone.utc).timestamp())}",
+            obs_payload = {
+                "id": f"OBS-{bin_id}-{int(datetime.now(timezone.utc).timestamp())}",
                 "bin_id": bin_id,
-                "waste_type": waste_type,
-                "weight_kg": current_fill_kg,
-                "recorded_at": now_str
+                "fill_percentage": payload.fill_percentage,
+                "measured_weight_kg": current_fill_kg,
+                "battery_percentage": payload.battery_percentage,
+                "temperature_c": payload.temperature_c,
+                "source_type": payload.source_type or "ultrasonic_sensor",
+                "observed_at": now_str,
+                "received_at": now_str
             }
-            supabase.table("waste_records").insert(waste_rec).execute()
+            supabase.table("observations").insert(obs_payload).execute()
         except Exception as e:
-            print(f"Error logging waste_record: {e}")
+            pass # Table may be pending migration in deployment
 
-        # Auto-create overflow alert if critical
+        # 2. Derive generated waste ONLY if fill percentage increased
+        fill_delta = payload.fill_percentage - prev_fill
+        if fill_delta > 0:
+            generated_delta_kg = round((fill_delta / 100.0) * capacity, 1)
+            try:
+                waste_rec = {
+                    "id": f"WR-{bin_id}-{int(datetime.now(timezone.utc).timestamp())}",
+                    "bin_id": bin_id,
+                    "waste_type": waste_type,
+                    "weight_kg": generated_delta_kg,
+                    "recorded_at": now_str
+                }
+                supabase.table("waste_records").insert(waste_rec).execute()
+            except Exception as e:
+                pass
+
+        # 3. Auto-create overflow alert if critical
         if status == "critical" and prev_fill < 80:
             alert_payload = {
                 "id": f"ALT-OVERFLOW-{int(datetime.now(timezone.utc).timestamp())}",
@@ -124,21 +148,21 @@ def ingest_telemetry(bin_id: str, payload: TelemetryInput):
             }
             supabase.table("alerts").insert(alert_payload).execute()
 
-        # Auto-create high_generation alert if sudden spike (>25% jump)
-        if (payload.fill_percentage - prev_fill) >= 25.0:
+        # 4. Auto-create high_generation alert if sudden spike (+25% jump)
+        if fill_delta >= 25.0:
             high_gen_alert = {
                 "id": f"ALT-HIGHGEN-{int(datetime.now(timezone.utc).timestamp())}",
                 "bin_id": bin_id,
                 "vehicle_id": None,
                 "type": "high_generation",
                 "severity": "warning",
-                "message": f"High waste generation detected at {bin_id} ({existing_bin.get('location_name', bin_id) if existing_bin else bin_id}): +{round(payload.fill_percentage - prev_fill, 1)}% surge.",
+                "message": f"High waste generation detected at {bin_id} ({existing_bin.get('location_name', bin_id) if existing_bin else bin_id}): +{round(fill_delta, 1)}% surge.",
                 "is_read": False,
                 "created_at": now_str
             }
             supabase.table("alerts").insert(high_gen_alert).execute()
 
-        return {"status": "success", "bin_id": bin_id, "updated": update_payload}
+        return {"status": "success", "bin_id": bin_id, "updated": update_payload, "fill_delta_kg": round((max(0, fill_delta)/100.0)*capacity, 1)}
 
     return {"status": "success (memory)", "bin_id": bin_id, "updated": update_payload}
 

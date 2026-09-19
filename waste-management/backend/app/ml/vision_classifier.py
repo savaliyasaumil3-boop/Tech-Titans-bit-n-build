@@ -1,7 +1,10 @@
 import io
 import math
-from typing import Dict, Any
+import logging
+from typing import Dict, Any, Optional
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 CATEGORIES = ["Plastic", "Organic", "Metal", "Paper", "Glass", "E-Waste", "Other"]
 
@@ -57,68 +60,109 @@ TIPS: Dict[str, str] = {
 
 def classify_waste_image(image_bytes: bytes, filename: str = "image.jpg") -> Dict[str, Any]:
     """
-    Performs image feature extraction and computer vision analysis on uploaded waste image.
-    Analyzes color distributions (RGB/HSV), texture/edge variance, contrast, and brightness.
+    Genuine Waste Vision Classification:
+    - Validates image bytes, format, size limits (< 10MB), and pixel boundaries (32x32 to 4096x4096).
+    - Removes artificial confidence floor inflation (+45% floor deleted).
+    - Computes honest probability distribution across all 6 PS-11 taxonomies.
+    - Zero silent Plastic fallbacks: returns explicit unavailable state if file is invalid.
     """
+    if not image_bytes or len(image_bytes) == 0:
+        return {
+            "status": "error",
+            "category": "Unknown",
+            "confidence": 0.0,
+            "error_detail": "Empty or missing image bytes payload.",
+            "is_valid": False
+        }
+
+    if len(image_bytes) > 10 * 1024 * 1024:
+        return {
+            "status": "error",
+            "category": "Unknown",
+            "confidence": 0.0,
+            "error_detail": "Image file size exceeds maximum limit of 10 MB.",
+            "is_valid": False
+        }
+
     try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img.verify() # Verify integrity of image headers
+        
+        # Re-open after verify()
         img = Image.open(io.BytesIO(image_bytes))
         img = img.convert("RGB")
         width, height = img.size
 
-        # Resize for fast feature extraction
-        sample_img = img.resize((100, 100))
+        if width < 32 or height < 32:
+            return {
+                "status": "error",
+                "category": "Unknown",
+                "confidence": 0.0,
+                "error_detail": f"Image dimensions too small ({width}x{height}). Minimum required is 32x32.",
+                "is_valid": False
+            }
+
+        if width > 4096 or height > 4096:
+            return {
+                "status": "error",
+                "category": "Unknown",
+                "confidence": 0.0,
+                "error_detail": f"Image dimensions too large ({width}x{height}). Maximum allowed is 4096x4096.",
+                "is_valid": False
+            }
+
+        # Analyze RGB & HSV features across image pixels
+        sample_img = img.resize((128, 128))
         pixels = list(sample_img.getdata())
         total_px = len(pixels)
 
-        r_total = sum(p[0] for p in pixels)
-        g_total = sum(p[1] for p in pixels)
-        b_total = sum(p[2] for p in pixels)
+        r_avg = sum(p[0] for p in pixels) / total_px
+        g_avg = sum(p[1] for p in pixels) / total_px
+        b_avg = sum(p[2] for p in pixels) / total_px
 
-        r_avg = r_total / total_px
-        g_avg = g_total / total_px
-        b_avg = b_total / total_px
+        green_ratio = g_avg / (r_avg + b_avg + 1.0)
+        blue_ratio = b_avg / (r_avg + g_avg + 1.0)
+        red_ratio = r_avg / (g_avg + b_avg + 1.0)
 
-        # Green dominance (Organic check)
-        green_ratio = g_avg / (r_avg + b_avg + 1)
-
-        # Metallic / Gray variance check
+        # Variance check for texture / metallic shine
         grayscale_diffs = [abs(p[0] - p[1]) + abs(p[1] - p[2]) for p in pixels]
         avg_diff = sum(grayscale_diffs) / total_px
-        is_metallic_gray = avg_diff < 15 and (r_avg > 80 and r_avg < 200)
+        is_metallic = avg_diff < 12 and (80 < r_avg < 210)
 
-        # High brightness / blue tint (Plastic bottle / clear glass)
-        blue_ratio = b_avg / (r_avg + g_avg + 1)
-        is_bright = (r_avg + g_avg + b_avg) / 3 > 180
+        # Baseline score initialization without artificial inflation
+        scores = {cat: 5.0 for cat in CATEGORIES}
 
-        # Feature Scoring System
-        scores = {cat: 10.0 for cat in CATEGORIES}
-
-        if green_ratio > 0.55:
+        # Feature matching logic
+        if green_ratio > 0.54:
             scores["Organic"] += 45.0
-        if is_metallic_gray:
-            scores["Metal"] += 35.0
-            scores["E-Waste"] += 20.0
+        if is_metallic:
+            scores["Metal"] += 40.0
+            scores["E-Waste"] += 25.0
         if blue_ratio > 0.52:
             scores["Plastic"] += 35.0
-            scores["Glass"] += 25.0
-        if is_bright and not is_metallic_gray:
-            scores["Paper"] += 30.0
-            scores["Plastic"] += 20.0
-        if r_avg > 140 and g_avg > 110 and b_avg < 90: # Brownish / Cardboard tint
+            scores["Glass"] += 20.0
+        if red_ratio > 0.55 and g_avg > 90:
             scores["Paper"] += 40.0
-        if r_avg < 60 and g_avg < 70 and b_avg < 60: # Dark e-waste / circuit
+        if r_avg < 50 and g_avg < 50 and b_avg < 50:
             scores["E-Waste"] += 35.0
-            scores["Other"] += 20.0
+            scores["Other"] += 25.0
 
-        # Normalize confidence
-        max_cat = max(scores, key=scores.get)
+        # Honest probability normalization (Softmax style)
         total_score = sum(scores.values())
-        raw_conf = (scores[max_cat] / total_score) * 100.0
-        confidence = round(min(98.9, max(82.5, raw_conf + 45.0)), 1)
+        prob_dist = {cat: round((sc / total_score) * 100.0, 1) for cat, sc in scores.items()}
+        
+        max_cat = max(prob_dist, key=prob_dist.get)
+        honest_confidence = prob_dist[max_cat]
+
+        # Flag low-confidence predictions (< 35%) as requiring human review
+        needs_human_review = honest_confidence < 35.0
 
         return {
-            "category": max_cat,
-            "confidence": confidence,
+            "status": "success",
+            "category": max_cat if not needs_human_review else "Uncertain (Human Review Required)",
+            "predicted_category": max_cat,
+            "confidence": honest_confidence,
+            "needs_human_review": needs_human_review,
             "filename": filename,
             "image_dimensions": f"{width}x{height}",
             "recyclability": RECYCLABILITY_INFO.get(max_cat, "Recyclable"),
@@ -126,20 +170,17 @@ def classify_waste_image(image_bytes: bytes, filename: str = "image.jpg") -> Dic
             "carbonOffset": CARBON_OFFSETS.get(max_cat, "0.20 kg CO₂ saved"),
             "decompositionTime": DECOMPOSITION_TIMES.get(max_cat, "Unknown"),
             "tips": TIPS.get(max_cat, "Follow local waste disposal guidelines."),
-            "all_scores": {cat: round((sc / total_score) * 100, 1) for cat, sc in scores.items()}
+            "class_distribution": prob_dist,
+            "is_valid": True
         }
 
     except Exception as e:
-        # Fallback response for unparseable image files
+        logger.error("Vision classifier inference failed for %s: %s", filename, e)
         return {
-            "category": "Plastic",
-            "confidence": 88.0,
-            "filename": filename,
-            "image_dimensions": "Unknown",
-            "recyclability": RECYCLABILITY_INFO["Plastic"],
-            "recommendedBin": BIN_TARGETS["Plastic"],
-            "carbonOffset": CARBON_OFFSETS["Plastic"],
-            "decompositionTime": DECOMPOSITION_TIMES["Plastic"],
-            "tips": TIPS["Plastic"],
-            "error": str(e)
+            "status": "error",
+            "category": "Unavailable",
+            "confidence": 0.0,
+            "error_detail": f"Failed to parse or classify image file: {str(e)}",
+            "is_valid": False
         }
+

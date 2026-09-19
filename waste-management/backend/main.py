@@ -6,6 +6,8 @@ from backend.app.api.bins import router as bins_router
 from backend.app.api.vehicles import router as vehicles_router
 from backend.app.api.alerts import router as alerts_router
 from backend.app.api.ml import router as ml_router
+from backend.app.api.collections import router as collections_router
+from backend.app.api.onboarding import router as onboarding_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -22,12 +24,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check
+from backend.app.core.supabase import get_supabase
+
+# Health check with Database Readiness Check
 @app.get("/api/health", tags=["Health"])
 @app.get("/health", tags=["Health"])
 def health_check():
+    supabase = get_supabase()
+    db_status = "disconnected"
+    if supabase:
+        try:
+            res = supabase.table("bins").select("id", count="exact").limit(1).execute()
+            db_status = f"connected ({res.count or 0} bins)"
+        except Exception as e:
+            db_status = f"error: {str(e)}"
     return {
-        "status": "healthy",
+        "status": "healthy" if "connected" in db_status else "degraded",
+        "database": db_status,
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
     }
@@ -37,9 +50,13 @@ app.include_router(bins_router, prefix=settings.API_PREFIX)
 app.include_router(vehicles_router, prefix=settings.API_PREFIX)
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 app.include_router(ml_router, prefix=settings.API_PREFIX)
+app.include_router(collections_router, prefix=settings.API_PREFIX)
+app.include_router(onboarding_router, prefix=settings.API_PREFIX)
 
 # Also mount ml_router at root for backwards-compatibility (/predict-fill, /optimize-route)
 app.include_router(ml_router)
 
 if __name__ == "__main__":
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+
+

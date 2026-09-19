@@ -72,7 +72,13 @@ export function buildPriorityBins(
   bins: DbBin[],
   predictions: DbPrediction[]
 ): PriorityBin[] {
-  const predMap = new Map(predictions.map((p) => [p.bin_id, p]));
+  const predMap = new Map<string, DbPrediction>();
+  for (const p of predictions) {
+    if (!predMap.has(p.bin_id)) {
+      predMap.set(p.bin_id, p);
+    }
+  }
+
 
   return bins.map((bin) => {
     const pred = predMap.get(bin.id);

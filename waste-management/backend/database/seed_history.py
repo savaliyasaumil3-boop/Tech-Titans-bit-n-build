@@ -1,12 +1,16 @@
-import os
-import random
-from datetime import datetime, timedelta, timezone
-from supabase import create_client
+from dotenv import load_dotenv
 
-URL = "https://whsprzbykknofztmhypa.supabase.co"
-KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indoc3ByemJ5a2tub2Z6dG1oeXBhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTgwMjU1MiwiZXhwIjoyMTA1Mzc4NTUyfQ.-taBLQP2t_cLO-B7dxwyb_Qg-knJTeoQHKzessoXgbw"
+load_dotenv(".env")
+load_dotenv("../.env")
+
+URL = os.getenv("SUPABASE_URL", "https://whsprzbykknofztmhypa.supabase.co")
+KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
+if not KEY:
+    raise ValueError("SUPABASE_SERVICE_ROLE_KEY environment variable is required to run seed script.")
 
 supabase = create_client(URL, KEY)
+
 
 def seed_waste_history():
     print("Fetching bins from Supabase...")
