@@ -13,11 +13,13 @@ import type {
   DbWasteRecord,
 } from "../db-types";
 
+const isSafeDemoMode = isDemoMode || !supabase;
+
 // ─── Bins ────────────────────────────────────────────────────────────────────
 
 export async function getBins(): Promise<DbBin[]> {
-  if (isDemoMode) return demoBins;
-  const { data, error } = await supabase!
+  if (isSafeDemoMode || !supabase) return demoBins;
+  const { data, error } = await supabase
     .from("bins")
     .select("*")
     .order("priority_score", { ascending: false });
@@ -29,8 +31,8 @@ export async function getBins(): Promise<DbBin[]> {
 }
 
 export async function getBinById(id: string): Promise<DbBin | null> {
-  if (isDemoMode) return demoBins.find((b) => b.id === id) ?? null;
-  const { data, error } = await supabase!
+  if (isSafeDemoMode || !supabase) return demoBins.find((b) => b.id === id) ?? null;
+  const { data, error } = await supabase
     .from("bins")
     .select("*")
     .eq("id", id)
@@ -46,11 +48,11 @@ export async function updateBin(
   id: string,
   updates: Partial<DbBin>
 ): Promise<DbBin | null> {
-  if (isDemoMode) {
+  if (isSafeDemoMode || !supabase) {
     const bin = demoBins.find((b) => b.id === id);
     return bin ? { ...bin, ...updates } : null;
   }
-  const { data, error } = await supabase!
+  const { data, error } = await supabase
     .from("bins")
     .update({ ...updates, last_updated: new Date().toISOString() })
     .eq("id", id)
@@ -66,8 +68,8 @@ export async function updateBin(
 // ─── Vehicles ────────────────────────────────────────────────────────────────
 
 export async function getVehicles(): Promise<DbVehicle[]> {
-  if (isDemoMode) return demoVehicles;
-  const { data, error } = await supabase!
+  if (isSafeDemoMode || !supabase) return demoVehicles;
+  const { data, error } = await supabase
     .from("vehicles")
     .select("*")
     .order("id");
@@ -79,8 +81,8 @@ export async function getVehicles(): Promise<DbVehicle[]> {
 }
 
 export async function getVehicleById(id: string): Promise<DbVehicle | null> {
-  if (isDemoMode) return demoVehicles.find((v) => v.id === id) ?? null;
-  const { data, error } = await supabase!
+  if (isSafeDemoMode || !supabase) return demoVehicles.find((v) => v.id === id) ?? null;
+  const { data, error } = await supabase
     .from("vehicles")
     .select("*")
     .eq("id", id)
@@ -95,8 +97,8 @@ export async function getVehicleById(id: string): Promise<DbVehicle | null> {
 // ─── Alerts ──────────────────────────────────────────────────────────────────
 
 export async function getAlerts(): Promise<DbAlert[]> {
-  if (isDemoMode) return demoAlerts;
-  const { data, error } = await supabase!
+  if (isSafeDemoMode || !supabase) return demoAlerts;
+  const { data, error } = await supabase
     .from("alerts")
     .select("*")
     .order("created_at", { ascending: false });
@@ -108,8 +110,8 @@ export async function getAlerts(): Promise<DbAlert[]> {
 }
 
 export async function markAlertRead(id: string): Promise<void> {
-  if (isDemoMode) return;
-  const { error } = await supabase!.from("alerts").update({ is_read: true }).eq("id", id);
+  if (isSafeDemoMode || !supabase) return;
+  const { error } = await supabase.from("alerts").update({ is_read: true }).eq("id", id);
   if (error) {
     console.error("markAlertRead error:", error);
   }
@@ -121,7 +123,7 @@ export async function getWasteHistory(
   binId?: string,
   days = 30
 ): Promise<DbWasteRecord[]> {
-  if (isDemoMode) {
+  if (isSafeDemoMode || !supabase) {
     const { demoWasteRecords } = await import("./demo-data");
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
@@ -132,7 +134,7 @@ export async function getWasteHistory(
   }
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
-  let query = supabase!
+  let query = supabase
     .from("waste_records")
     .select("*")
     .gte("recorded_at", cutoff.toISOString())
@@ -149,10 +151,10 @@ export async function getWasteHistory(
 // ─── Collections ─────────────────────────────────────────────────────────────
 
 export async function getCollections(days = 7) {
-  if (isDemoMode) return [];
+  if (isSafeDemoMode || !supabase) return [];
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
-  const { data, error } = await supabase!
+  const { data, error } = await supabase
     .from("collections")
     .select("*")
     .gte("collected_at", cutoff.toISOString())
@@ -167,8 +169,8 @@ export async function getCollections(days = 7) {
 // ─── Predictions ─────────────────────────────────────────────────────────────
 
 export async function getPredictions(): Promise<DbPrediction[]> {
-  if (isDemoMode) return demoPredictions;
-  const { data, error } = await supabase!
+  if (isSafeDemoMode || !supabase) return demoPredictions;
+  const { data, error } = await supabase
     .from("predictions")
     .select("*")
     .order("prediction_created_at", { ascending: false });
@@ -182,8 +184,8 @@ export async function getPredictions(): Promise<DbPrediction[]> {
 export async function getPredictionForBin(
   binId: string
 ): Promise<DbPrediction | null> {
-  if (isDemoMode) return demoPredictions.find((p) => p.bin_id === binId) ?? null;
-  const { data, error } = await supabase!
+  if (isSafeDemoMode || !supabase) return demoPredictions.find((p) => p.bin_id === binId) ?? null;
+  const { data, error } = await supabase
     .from("predictions")
     .select("*")
     .eq("bin_id", binId)

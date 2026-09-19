@@ -71,10 +71,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const loadData = useCallback(async () => {
     try {
       // 1. Try FastAPI backend operational boundary first
+      const baseUrl = process.env.NEXT_PUBLIC_ML_API_URL || "http://localhost:8000";
       const [binsRes, vehRes, altRes] = await Promise.allSettled([
-        fetch("http://localhost:8000/api/bins").then(r => r.json()),
-        fetch("http://localhost:8000/api/vehicles").then(r => r.json()),
-        fetch("http://localhost:8000/api/alerts").then(r => r.json()),
+        fetch(`${baseUrl}/api/bins`).then(r => r.json()),
+        fetch(`${baseUrl}/api/vehicles`).then(r => r.json()),
+        fetch(`${baseUrl}/api/alerts`).then(r => r.json()),
       ]);
 
       let loadedBins = binsRes.status === "fulfilled" && Array.isArray(binsRes.value) && binsRes.value.length > 0 ? binsRes.value : [];
@@ -181,25 +182,24 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         setAlerts((a) => [...newAlerts, ...a].slice(0, 50)); // cap at 50 alerts
       }
 
+      // Also update predictions in sync with the fresh updated bins
+      setPredictions((prev) =>
+        prev.map((p) => {
+          const bin = updated.find((b) => b.id === p.bin_id);
+          if (!bin) return p;
+          return {
+            ...p,
+            overflow_probability: estimateOverflowProbability(bin.fill_percentage),
+            prediction_created_at: new Date().toISOString(),
+          };
+        })
+      );
+
       return updated;
     });
 
-    // Also update predictions
-    setPredictions((prev) =>
-      prev.map((p) => {
-        // Find from latest updated bins if possible
-        const bin = bins.find((b) => b.id === p.bin_id);
-        if (!bin) return p;
-        return {
-          ...p,
-          overflow_probability: estimateOverflowProbability(bin.fill_percentage),
-          prediction_created_at: new Date().toISOString(),
-        };
-      })
-    );
-
     setLastUpdated(new Date());
-  }, [bins]);
+  }, []);
 
   useEffect(() => {
     // Only run random local simulation if explicitly in Demo Mode

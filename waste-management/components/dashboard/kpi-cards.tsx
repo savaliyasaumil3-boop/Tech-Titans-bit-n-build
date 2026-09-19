@@ -43,13 +43,13 @@ export function KPICards() {
   ).length;
   const totalCollectedKg = vehicles
     .filter(v => v.status !== "maintenance" && v.status !== "offline")
-    .reduce((sum, v) => sum + v.current_load_kg, 0);
+    .reduce((sum, v) => sum + (v.current_load_kg || 0), 0);
   const totalCollectedTons = (totalCollectedKg / 1000).toFixed(1);
 
   // CO₂ prevented: estimate from current bin composition × 92% collection efficiency
   const co2Prevented = bins.reduce((sum, bin) => {
     const factor = CO2_FACTORS[bin.waste_type] ?? 0.5;
-    const collectedKg = bin.current_fill_kg * 0.92;
+    const collectedKg = (bin.current_fill_kg || 0) * 0.92;
     return sum + collectedKg * factor;
   }, 0);
 

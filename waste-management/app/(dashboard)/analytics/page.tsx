@@ -86,17 +86,18 @@ export default function AnalyticsPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const daysMap = new Map<string, any>();
   history.forEach((record) => {
-    const date = new Date(record.recorded_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    if (!daysMap.has(date)) {
-      daysMap.set(date, { date, Plastic: 0, Paper: 0, Metal: 0, Glass: 0, Organic: 0, "E-Waste": 0, Other: 0, total: 0 });
+    const rawIso = new Date(record.recorded_at).toISOString().slice(0, 10);
+    const dateLabel = new Date(record.recorded_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (!daysMap.has(rawIso)) {
+      daysMap.set(rawIso, { rawIso, date: dateLabel, Plastic: 0, Paper: 0, Metal: 0, Glass: 0, Organic: 0, "E-Waste": 0, Other: 0, total: 0 });
     }
-    const dayData = daysMap.get(date)!;
+    const dayData = daysMap.get(rawIso)!;
     dayData[record.waste_type] = (dayData[record.waste_type] || 0) + record.weight_kg;
     dayData.total += record.weight_kg;
   });
 
   const generationData = Array.from(daysMap.values())
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .sort((a, b) => a.rawIso.localeCompare(b.rawIso))
     .map(d => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rounded: any = { date: d.date, total: Math.round((d.total as number)) };

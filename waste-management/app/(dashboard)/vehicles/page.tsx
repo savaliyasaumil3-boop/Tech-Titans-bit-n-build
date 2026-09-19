@@ -89,9 +89,13 @@ export default function VehiclesPage() {
     }
     setIsUnloading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/collections/unload", {
+      const baseUrl = process.env.NEXT_PUBLIC_ML_API_URL || "http://localhost:8000";
+      const res = await fetch(`${baseUrl}/api/collections/unload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer test-jwt-token",
+        },
         body: JSON.stringify({
           vehicle_id: v.id,
           facility_name: "Ahmedabad Municipal Waste Processing Facility",
