@@ -14,6 +14,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Clock, MapPin, Trash2, Truck, Gauge, BarChart3, TrendingDown } from "lucide-react";
 import { getRecommendedAction } from "@/lib/services/priority-engine";
+import { useAppData } from "@/components/providers/app-data-provider";
 
 interface BinDetailsDrawerProps {
   bin: DbBin | null;
@@ -55,6 +56,8 @@ export function BinDetailsDrawer({
   open,
   onOpenChange,
 }: BinDetailsDrawerProps) {
+  const { refreshData } = useAppData();
+
   if (!bin) return null;
 
   const recommendation = getRecommendedAction(
@@ -178,7 +181,7 @@ export function BinDetailsDrawer({
                   if (res.ok) {
                     alert(`Bin ${bin.id} collection pickup completed successfully!`);
                     onOpenChange(false);
-                    window.location.reload();
+                    refreshData();
                   } else {
                     const err = await res.json();
                     alert(`Pickup Failed: ${err.detail || 'Server error'}`);

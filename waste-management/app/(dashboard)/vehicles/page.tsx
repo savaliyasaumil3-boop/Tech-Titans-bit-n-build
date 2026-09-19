@@ -65,10 +65,11 @@ function timeAgo(ts: string) {
 }
 
 export default function VehiclesPage() {
-  const { vehicles } = useAppData();
+  const { vehicles, refreshData } = useAppData();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedVehicle, setSelectedVehicle] = useState<DbVehicle | null>(null);
+  const [isUnloading, setIsUnloading] = useState(false);
 
   const filtered = vehicles.filter((v) => {
     if (search) {
@@ -80,6 +81,38 @@ export default function VehiclesPage() {
     if (statusFilter !== "all" && v.status !== statusFilter) return false;
     return true;
   });
+
+  const handleUnload = async (v: DbVehicle) => {
+    if (v.current_load_kg <= 0) {
+      alert(`Vehicle ${v.id} is already empty (0kg load).`);
+      return;
+    }
+    setIsUnloading(true);
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/collections/unload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vehicle_id: v.id,
+          facility_name: "Ahmedabad Municipal Waste Processing Facility",
+          gross_weight_kg: v.current_load_kg + 3500.0,
+          net_weight_kg: v.current_load_kg,
+          accepted_waste_type: "Mixed Recyclable"
+        })
+      });
+      if (res.ok) {
+        alert(`Successfully unloaded ${v.current_load_kg}kg from ${v.id} at processing facility!`);
+        refreshData();
+      } else {
+        const err = await res.json();
+        alert(`Unload failed: ${err.detail || "Server error"}`);
+      }
+    } catch (e) {
+      alert(`Unload error: ${e}`);
+    } finally {
+      setIsUnloading(false);
+    }
+  };
 
   // Summary stats
   const activeCount = vehicles.filter(v => v.status === "collecting" || v.status === "available").length;
@@ -254,9 +287,20 @@ export default function VehiclesPage() {
                     </p>
                   </div>
 
-                  <div className="pt-2 flex gap-2">
-                    <Button size="sm" className="flex-1 text-xs">Dispatch</Button>
-                    <Button size="sm" variant="outline" className="flex-1 text-xs">Track</Button>
+                  <div className="pt-2 flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <Button size="sm" className="flex-1 text-xs">Dispatch</Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs">Track</Button>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-full text-xs font-semibold text-brand border border-brand/20 bg-brand/10 hover:bg-brand/20"
+                      disabled={isUnloading || selectedVehicle.current_load_kg <= 0}
+                      onClick={() => handleUnload(selectedVehicle)}
+                    >
+                      {isUnloading ? "Unloading..." : `Unload ${selectedVehicle.current_load_kg}kg at Facility`}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
