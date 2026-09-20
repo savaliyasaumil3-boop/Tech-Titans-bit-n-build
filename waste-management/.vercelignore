@@ -1,0 +1,6 @@
+# Ignore python backend and ML services
+backend/
+ml-service/
+requirements.txt
+**/requirements.txt
+*.py
