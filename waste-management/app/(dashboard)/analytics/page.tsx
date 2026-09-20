@@ -30,9 +30,10 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useAppData } from "@/components/providers/app-data-provider";
-import { getWasteHistory, getBins, getVehicles } from "@/lib/supabase/queries";
-import type { DbWasteRecord, DbBin, DbVehicle } from "@/lib/db-types";
+import { getWasteHistory, getBins, getVehicles, getClassificationStats } from "@/lib/supabase/queries";
+import type { DbWasteRecord, DbBin, DbVehicle, ClassificationStats } from "@/lib/db-types";
 import { demoWasteRecords, demoBins, demoVehicles } from "@/lib/supabase/demo-data";
+import { BrainCircuit, ImagePlus } from "lucide-react";
 
 // Vibrant Colors for waste types
 const WASTE_COLORS: Record<string, string> = {
@@ -51,18 +52,21 @@ export default function AnalyticsPage() {
   const [bins, setBins] = useState<DbBin[]>([]);
   const [vehicles, setVehicles] = useState<DbVehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [classStats, setClassStats] = useState<ClassificationStats | null>(null);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
-      const [histData, binData, vehData] = await Promise.all([
+      const [histData, binData, vehData, clsStats] = await Promise.all([
         getWasteHistory(undefined, 30),
         getBins(),
-        getVehicles()
+        getVehicles(),
+        getClassificationStats(),
       ]);
       setHistory(histData && histData.length > 0 ? histData : demoWasteRecords);
       setBins(binData && binData.length > 0 ? binData : demoBins);
       setVehicles(vehData && vehData.length > 0 ? vehData : demoVehicles);
+      setClassStats(clsStats);
       setLoading(false);
     }
     loadData();
@@ -555,6 +559,71 @@ export default function AnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── AI Waste Classification Analytics ────────────────────────── */}
+        {classStats && classStats.total > 0 && (
+          <Card className="shadow-none">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <BrainCircuit className="h-4 w-4 text-primary" />
+                <CardTitle className="text-base">AI Waste Classification</CardTitle>
+              </div>
+              <CardDescription className="text-xs">
+                Statistics from real MobileNetV2 inference · {classStats.total} images classified
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* KPI row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: "Total Classified", value: classStats.total.toLocaleString(), icon: ImagePlus, color: "text-primary" },
+                  { label: "Avg Confidence",   value: `${(classStats.avg_confidence * 100).toFixed(1)}%`, icon: CheckCircle2, color: "text-green-600" },
+                  { label: "Most Detected",    value: classStats.most_detected ?? "—", icon: TrendingUp, color: "text-amber-600" },
+                  { label: "Today's Count",    value: classStats.today_count.toLocaleString(), icon: Recycle, color: "text-blue-600" },
+                ].map(({ label, value, icon: Icon, color }) => (
+                  <div key={label} className="p-3.5 rounded-lg border border-border bg-muted/20 space-y-1.5">
+                    <p className="text-xs text-muted-foreground font-medium">{label}</p>
+                    <div className="flex items-center gap-1.5">
+                      <Icon className={`h-4 w-4 ${color}`} />
+                      <span className={`text-lg font-bold ${color}`}>{value}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Distribution */}
+              {Object.keys(classStats.distribution).length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Waste Type Distribution</p>
+                  <div className="space-y-2">
+                    {Object.entries(classStats.distribution)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cls, count]) => {
+                        const pct = Math.round((count / classStats.total) * 100);
+                        const colors: Record<string, string> = {
+                          Plastic: "#0ea5e9", Paper: "#f59e0b", Metal: "#8b5cf6",
+                          Glass: "#06b6d4", Organic: "#16a34a", Other: "#6b7280",
+                        };
+                        return (
+                          <div key={cls} className="flex items-center gap-3 text-xs">
+                            <span className="w-16 font-medium text-foreground shrink-0">{cls}</span>
+                            <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{ width: `${pct}%`, backgroundColor: colors[cls] ?? "#6b7280" }}
+                              />
+                            </div>
+                            <span className="w-10 text-right tabular-nums text-muted-foreground">{pct}%</span>
+                            <span className="w-6 text-right tabular-nums text-muted-foreground/60">{count}</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
       </div>
     </>

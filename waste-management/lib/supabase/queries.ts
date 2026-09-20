@@ -11,6 +11,10 @@ import type {
   DbAlert,
   DbPrediction,
   DbWasteRecord,
+  DbWasteClassification,
+  WasteCategory,
+  ClassificationPrediction,
+  ClassificationStats,
 } from "../db-types";
 
 const isSafeDemoMode = isDemoMode || !supabase;
@@ -197,4 +201,98 @@ export async function getPredictionForBin(
     return null;
   }
   return data;
+}
+
+// ─── Waste Classifications ────────────────────────────────────────────────────
+
+export async function saveClassification(
+  result: Omit<DbWasteClassification, "id" | "created_at">
+): Promise<DbWasteClassification | null> {
+  if (isSafeDemoMode || !supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("waste_classifications")
+      .insert({
+        predicted_class: result.predicted_class,
+        confidence: result.confidence,
+        top_predictions: result.top_predictions,
+        is_confident: result.is_confident,
+        is_demo_mode: result.is_demo_mode,
+        image_url: result.image_url ?? null,
+      })
+      .select()
+      .maybeSingle();
+    if (error) {
+      console.warn("saveClassification error:", error);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function getClassificationHistory(
+  filter?: WasteCategory | "All",
+  limit = 50
+): Promise<DbWasteClassification[]> {
+  if (isSafeDemoMode || !supabase) return [];
+  try {
+    let query = supabase
+      .from("waste_classifications")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (filter && filter !== "All") {
+      query = query.eq("predicted_class", filter);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.warn("getClassificationHistory error:", error);
+      return [];
+    }
+    return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getClassificationStats(): Promise<ClassificationStats> {
+  const empty: ClassificationStats = {
+    total: 0,
+    avg_confidence: 0,
+    most_detected: null,
+    today_count: 0,
+    distribution: {},
+  };
+
+  if (isSafeDemoMode || !supabase) return empty;
+
+  try {
+    const { data, error } = await supabase
+      .from("waste_classifications")
+      .select("predicted_class, confidence, created_at");
+
+    if (error || !data || data.length === 0) return empty;
+
+    const total = data.length;
+    const avg_confidence = data.reduce((s, r) => s + (r.confidence ?? 0), 0) / total;
+
+    // Distribution count
+    const dist: Record<string, number> = {};
+    for (const row of data) {
+      const cls = row.predicted_class as string;
+      dist[cls] = (dist[cls] ?? 0) + 1;
+    }
+    const most_detected = (Object.entries(dist).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null) as WasteCategory | null;
+
+    // Today count
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const today_count = data.filter(r => new Date(r.created_at) >= todayStart).length;
+
+    return { total, avg_confidence, most_detected, today_count, distribution: dist };
+  } catch {
+    return empty;
+  }
 }

@@ -12,3 +12,12 @@ requests>=2.31.0
 python-multipart>=0.0.9
 pillow>=10.2.0
 
+# ── AI Model Dependencies ───────────────────────────────────────────────────
+# PyTorch + torchvision for real MobileNetV2 waste classification inference.
+# CPU-only wheels (~250 MB) are sufficient — no GPU required.
+# Install with:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# Or for GPU (CUDA 12.1):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0
+torchvision>=0.15.0

@@ -53,7 +53,37 @@ export interface WasteClassificationResult {
   all_scores?: Record<string, number>;
 }
 
+export interface ClassificationPredictionItem {
+  class: string;
+  confidence: number;
+  confidence_percentage: number;
+}
 
+export interface WasteClassificationV2Result {
+  success: boolean;
+  status: "success" | "error";
+  predicted_class: string;
+  confidence: number;              // 0.0 – 1.0
+  confidence_percentage: number;   // 0.0 – 100.0
+  top_predictions: ClassificationPredictionItem[];
+  is_confident: boolean;
+  is_demo_mode: boolean;
+  model_name?: string;
+  // Legacy compat fields
+  category?: string;
+  filename?: string;
+  image_dimensions?: string;
+  recyclability?: string;
+  recommendedBin?: string;
+  carbonOffset?: string;
+  decompositionTime?: string;
+  tips?: string;
+  is_valid?: boolean;
+  error_detail?: string;
+  error?: string;
+}
+
+/** Legacy wrapper kept for backward compatibility with existing page.tsx */
 export async function classifyWaste(file: File): Promise<WasteClassificationResult | null> {
   try {
     const formData = new FormData();
@@ -62,7 +92,7 @@ export async function classifyWaste(file: File): Promise<WasteClassificationResu
     const res = await fetch(`${ML_API_URL}/api/ml/classify-waste`, {
       method: "POST",
       body: formData,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!res.ok) return null;
@@ -72,6 +102,56 @@ export async function classifyWaste(file: File): Promise<WasteClassificationResu
     return null;
   }
 }
+
+/** New v2 function returning extended schema with top_predictions, is_confident, is_demo_mode */
+export async function classifyWasteV2(file: File): Promise<WasteClassificationV2Result | null> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`${ML_API_URL}/api/ml/classify`, {
+      method: "POST",
+      body: formData,
+      signal: AbortSignal.timeout(60000), // allow up to 60s for model cold start
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "Unknown error");
+      console.error("classifyWasteV2 HTTP error:", res.status, errText);
+      return {
+        success: false,
+        status: "error",
+        predicted_class: "Unknown",
+        confidence: 0,
+        confidence_percentage: 0,
+        top_predictions: [],
+        is_confident: false,
+        is_demo_mode: true,
+        error_detail: `Server error ${res.status}: ${errText}`,
+        error: `Server error ${res.status}`,
+        is_valid: false,
+      };
+    }
+    return res.json();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Network error";
+    console.error("classifyWasteV2 error:", err);
+    return {
+      success: false,
+      status: "error",
+      predicted_class: "Unknown",
+      confidence: 0,
+      confidence_percentage: 0,
+      top_predictions: [],
+      is_confident: false,
+      is_demo_mode: true,
+      error_detail: msg,
+      error: msg,
+      is_valid: false,
+    };
+  }
+}
+
 
 
 // ─── Route Optimization ───────────────────────────────────────────────────────

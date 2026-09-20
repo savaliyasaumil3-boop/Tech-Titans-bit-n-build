@@ -109,3 +109,39 @@ export interface RecommendedAction {
   urgency: "immediate" | "soon" | "monitor" | "none";
   color: string;
 }
+
+// ─── Waste Classification ─────────────────────────────────────────────────────
+
+export type WasteCategory =
+  | "Plastic"
+  | "Paper"
+  | "Metal"
+  | "Glass"
+  | "Organic"
+  | "Other"
+  | "Unknown";
+
+export interface ClassificationPrediction {
+  class: WasteCategory;
+  confidence: number;
+  confidence_percentage: number;
+}
+
+export interface DbWasteClassification {
+  id: string;
+  image_url: string | null;
+  predicted_class: WasteCategory;
+  confidence: number;
+  top_predictions: ClassificationPrediction[];
+  is_confident: boolean;
+  is_demo_mode: boolean;
+  created_at: string;
+}
+
+export interface ClassificationStats {
+  total: number;
+  avg_confidence: number;
+  most_detected: WasteCategory | null;
+  today_count: number;
+  distribution: Record<string, number>;
+}
