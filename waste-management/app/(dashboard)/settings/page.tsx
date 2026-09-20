@@ -12,9 +12,12 @@ import {
   Save,
   Check,
   Sparkles,
+  User,
 } from "lucide-react";
+import { useAuth } from "@/components/providers/auth-provider";
 
 export default function SettingsPage() {
+  const { profile, user } = useAuth();
   const [criticalThreshold, setCriticalThreshold] = useState("80");
   const [warningThreshold, setWarningThreshold] = useState("50");
   const [simulationInterval, setSimulationInterval] = useState("20");
@@ -31,10 +34,74 @@ export default function SettingsPage() {
     <>
       <Header
         title="Settings & System Configuration"
-        subtitle="Telemetry thresholds, AI engine parameters, IoT refresh intervals, and role-based permissions"
+        subtitle="Telemetry thresholds, AI engine parameters, IoT refresh intervals, and profile management"
       />
 
       <div className="space-y-6 p-6 max-w-4xl">
+        {/* Supervisor Profile Card */}
+        <Card className="shadow-none" id="profile">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" />
+              Supervisor Profile Details
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Account identity and credentials for the current supervisor session
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Full Name
+                </label>
+                <Input
+                  type="text"
+                  value={profile?.full_name ?? "Supervisor"}
+                  readOnly
+                  className="h-9 text-sm bg-muted/30"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Email Address
+                </label>
+                <Input
+                  type="email"
+                  value={user?.email ?? "supervisor@swachhsetu.gov.in"}
+                  readOnly
+                  className="h-9 text-sm bg-muted/30"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  System Role
+                </label>
+                <Input
+                  type="text"
+                  value={profile?.role ? profile.role.toUpperCase() : "SUPERVISOR"}
+                  readOnly
+                  className="h-9 text-sm bg-muted/30 font-medium text-primary"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Assigned Zone
+                </label>
+                <Input
+                  type="text"
+                  value="AMC West & Central Zone"
+                  readOnly
+                  className="h-9 text-sm bg-muted/30"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Threshold Configuration */}
         <Card className="shadow-none">
           <CardHeader className="pb-3">

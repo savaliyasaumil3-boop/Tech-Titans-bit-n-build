@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 function LoginForm() {
   const searchParams = useSearchParams();
   const { signIn, resetPassword, changePassword, profile, user } = useAuth();
+  const [selectedRole, setSelectedRole] = useState<"supervisor" | "driver">("supervisor");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,7 +48,7 @@ function LoginForm() {
       } else if (mode === "change") {
         if (password !== confirmPassword) throw new Error("Passwords do not match.");
         await changePassword(password);
-        setMessage("Password updated. You can now open your driver dashboard.");
+        setMessage("Password updated.");
         window.location.assign(profile?.role === "driver" ? "/driver/dashboard" : "/dashboard");
       } else {
         await signIn(email, password);
@@ -62,21 +63,130 @@ function LoginForm() {
   return (
     <main className="min-h-screen bg-background px-5 py-10 sm:flex sm:items-center sm:justify-center">
       <section className="w-full max-w-md rounded-2xl border border-border bg-card p-7 shadow-sm sm:p-9">
-        <div className="mb-8 flex items-center gap-3">
+        <div className="mb-6 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-muted text-brand"><Recycle className="h-6 w-6" /></div>
           <div><p className="text-lg font-semibold tracking-tight">SwachhSetu</p><p className="text-sm text-muted-foreground">Collection operations</p></div>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">{mode === "login" ? "Sign in" : mode === "change" ? "Set your permanent password" : "Reset password"}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{mode === "change" ? "Your temporary password must be replaced before operational actions are enabled." : "Use your assigned account. Access is granted by your SwachhSetu role."}</p>
+
+        {/* Role Selector Tabs */}
+        {mode === "login" && (
+          <div className="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-muted p-1 text-sm font-medium">
+            <button
+              type="button"
+              onClick={() => { setSelectedRole("supervisor"); setError(null); }}
+              className={`flex items-center justify-center gap-2 rounded-lg py-2.5 transition-all ${
+                selectedRole === "supervisor"
+                  ? "bg-background text-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span>👔</span> Supervisor
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedRole("driver"); setError(null); }}
+              className={`flex items-center justify-center gap-2 rounded-lg py-2.5 transition-all ${
+                selectedRole === "driver"
+                  ? "bg-background text-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span>🚛</span> Driver
+            </button>
+          </div>
+        )}
+
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {mode === "login"
+            ? `${selectedRole === "supervisor" ? "Supervisor" : "Driver"} Sign in`
+            : mode === "change"
+            ? "Set your permanent password"
+            : "Reset password"}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {mode === "change"
+            ? "Your temporary password must be replaced before operational actions are enabled."
+            : `Log in to access the ${selectedRole === "supervisor" ? "Municipal Supervisor Control Center" : "Driver Route & Shift Dashboard"}.`}
+        </p>
+
         <form onSubmit={submit} className="mt-7 space-y-4">
-          {mode !== "change" && <label className="block space-y-2 text-sm font-medium">Work email<div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-9" autoComplete="email" /></div></label>}
-          {mode !== "reset" && <label className="block space-y-2 text-sm font-medium">{mode === "change" ? "New password" : "Password"}<div className="relative"><LockKeyhole className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input required minLength={10} type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-9" autoComplete={mode === "change" ? "new-password" : "current-password"} /></div></label>}
-          {mode === "change" && <label className="block space-y-2 text-sm font-medium">Confirm new password<Input required minLength={10} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" /></label>}
+          {mode !== "change" && (
+            <label className="block space-y-2 text-sm font-medium">
+              Work email
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  required
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={selectedRole === "supervisor" ? "supervisor@swachhsetu.gov.in" : "driver@swachhsetu.gov.in"}
+                  className="pl-9"
+                  autoComplete="email"
+                />
+              </div>
+            </label>
+          )}
+
+          {mode !== "reset" && (
+            <label className="block space-y-2 text-sm font-medium">
+              {mode === "change" ? "New password" : "Password"}
+              <div className="relative">
+                <LockKeyhole className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  required
+                  minLength={mode === "change" ? 10 : 1}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-9"
+                  autoComplete={mode === "change" ? "new-password" : "current-password"}
+                />
+              </div>
+            </label>
+          )}
+
+          {mode === "change" && (
+            <label className="block space-y-2 text-sm font-medium">
+              Confirm new password
+              <Input
+                required
+                minLength={10}
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </label>
+          )}
+
           {error && <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           {message && <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
-          <Button type="submit" className="h-11 w-full" disabled={saving}>{saving ? "Working..." : mode === "login" ? "Sign in" : mode === "change" ? "Save permanent password" : "Email reset link"}</Button>
+
+          <Button type="submit" className="h-11 w-full" disabled={saving}>
+            {saving
+              ? "Working..."
+              : mode === "login"
+              ? `Sign in as ${selectedRole === "supervisor" ? "Supervisor" : "Driver"}`
+              : mode === "change"
+              ? "Save permanent password"
+              : "Email reset link"}
+          </Button>
         </form>
-        {mode !== "change" && <button type="button" className="mt-5 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" onClick={() => { setMode(mode === "login" ? "reset" : "login"); setError(null); setMessage(null); }}>{mode === "login" ? "Forgot password?" : <><ArrowLeft className="h-3.5 w-3.5" /> Back to sign in</>}</button>}
+
+        {mode !== "change" && (
+          <button
+            type="button"
+            className="mt-5 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setMode(mode === "login" ? "reset" : "login");
+              setError(null);
+              setMessage(null);
+            }}
+          >
+            {mode === "login" ? "Forgot password?" : <><ArrowLeft className="h-3.5 w-3.5" /> Back to sign in</>}
+          </button>
+        )}
       </section>
     </main>
   );
