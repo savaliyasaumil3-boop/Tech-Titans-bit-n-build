@@ -14,6 +14,8 @@ import {
   Bell,
   Settings,
   Activity,
+  TrendingUp,
+  Layers,
 } from "lucide-react";
 import {
   Sheet,
@@ -28,6 +30,8 @@ import { cn } from "@/lib/utils";
 
 const navLinks = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Waste Forecast", href: "/waste-forecast", icon: TrendingUp },
+  { label: "Waste Hotspots", href: "/waste-hotspots", icon: Layers },
   { label: "Smart Bins", href: "/bins", icon: Trash2 },
   { label: "Collection Routes", href: "/routes", icon: Route },
   { label: "Vehicles", href: "/vehicles", icon: Truck },

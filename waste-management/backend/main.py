@@ -45,16 +45,20 @@ def health_check():
         "version": settings.VERSION,
     }
 
+from backend.app.api.forecasting import router as forecasting_router
+
 # Mount sub-routers under /api
 app.include_router(bins_router, prefix=settings.API_PREFIX)
 app.include_router(vehicles_router, prefix=settings.API_PREFIX)
 app.include_router(alerts_router, prefix=settings.API_PREFIX)
 app.include_router(ml_router, prefix=settings.API_PREFIX)
+app.include_router(forecasting_router, prefix=settings.API_PREFIX)
 app.include_router(collections_router, prefix=settings.API_PREFIX)
 app.include_router(onboarding_router, prefix=settings.API_PREFIX)
 
-# Also mount ml_router at root for backwards-compatibility (/predict-fill, /optimize-route)
+# Also mount ml_router and forecasting_router at root for backwards-compatibility
 app.include_router(ml_router)
+app.include_router(forecasting_router)
 
 if __name__ == "__main__":
     uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)

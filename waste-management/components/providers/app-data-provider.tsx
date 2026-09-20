@@ -71,7 +71,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const loadData = useCallback(async () => {
     try {
       // 1. Try FastAPI backend operational boundary first
-      const baseUrl = process.env.NEXT_PUBLIC_ML_API_URL || "http://localhost:8000";
+      const baseUrl = process.env.NEXT_PUBLIC_ML_API_URL || "http://127.0.0.1:8000";
       const [binsRes, vehRes, altRes] = await Promise.allSettled([
         fetch(`${baseUrl}/api/bins`).then(r => r.json()),
         fetch(`${baseUrl}/api/vehicles`).then(r => r.json()),

@@ -13,6 +13,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  TrendingUp,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,6 +30,8 @@ import { useAppData } from "@/components/providers/app-data-provider";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Waste Forecast", href: "/waste-forecast", icon: TrendingUp },
+  { label: "Waste Hotspots", href: "/waste-hotspots", icon: Layers },
   { label: "Smart Bins", href: "/bins", icon: Trash2 },
   { label: "Collection Routes", href: "/routes", icon: Route },
   { label: "Vehicles", href: "/vehicles", icon: Truck },

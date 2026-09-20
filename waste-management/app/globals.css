@@ -250,3 +250,7 @@
 .leaflet-popup-tip {
   box-shadow: none;
 }
+
+.map-tiles {
+  /* Standard light OpenStreetMap tiles */
+}

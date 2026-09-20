@@ -1,7 +1,7 @@
 import type { OptimizedRoute, RouteStop } from "../db-types";
 import { buildVehicleRoutePlan } from "./route-optimizer";
 
-const ML_API_URL = process.env.NEXT_PUBLIC_ML_API_URL ?? "http://localhost:8000";
+const ML_API_URL = process.env.NEXT_PUBLIC_ML_API_URL ?? "http://127.0.0.1:8000";
 
 // ─── ML Prediction ────────────────────────────────────────────────────────────
 
