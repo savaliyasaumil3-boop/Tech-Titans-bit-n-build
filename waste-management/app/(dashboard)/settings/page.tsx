@@ -69,7 +69,7 @@ export default function SettingsPage() {
                 </label>
                 <Input
                   type="email"
-                  value={user?.email ?? "supervisor@swachhsetu.gov.in"}
+                  value={user?.email ?? "supervisor@swachhsetu.in"}
                   readOnly
                   className="h-9 text-sm bg-muted/30"
                 />

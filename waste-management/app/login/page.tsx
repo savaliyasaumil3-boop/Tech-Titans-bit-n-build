@@ -2,10 +2,27 @@
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, LockKeyhole, Mail, Recycle } from "lucide-react";
+import { ArrowLeft, Check, Copy, KeyRound, LockKeyhole, Mail, Recycle, ShieldCheck, Sparkles, Truck } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+const DEMO_CREDENTIALS = {
+  supervisor: {
+    roleName: "Supervisor",
+    icon: ShieldCheck,
+    email: "supervisor@swachhsetu.in",
+    password: "SwachhSetu!Sup2026#",
+    portal: "Supervisor Control Center",
+  },
+  driver: {
+    roleName: "Truck Driver",
+    icon: Truck,
+    email: "driver@swachhsetu.in",
+    password: "SwachhSetu!Driver2026#",
+    portal: "Driver Route & Shift",
+  },
+} as const;
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -18,6 +35,7 @@ function LoginForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const modeFromQuery = searchParams.get("mode");
   const resolvedMode = modeFromQuery === "reset" ? "reset" : modeFromQuery === "change" ? "change" : "login";
@@ -35,6 +53,25 @@ function LoginForm() {
       </main>
     );
   }
+
+  const fillDemoCredentials = (role: "supervisor" | "driver") => {
+    const creds = DEMO_CREDENTIALS[role];
+    setSelectedRole(role);
+    setEmail(creds.email);
+    setPassword(creds.password);
+    setError(null);
+    setMessage(`Loaded demo credentials for ${creds.roleName}. Click 'Sign in' to continue.`);
+  };
+
+  const copyToClipboard = (text: string, id: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    setCopiedKey(id);
+    setTimeout(() => {
+      setCopiedKey((current) => (current === id ? null : current));
+    }, 2000);
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -80,7 +117,8 @@ function LoginForm() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <span>👔</span> Supervisor
+              <ShieldCheck className="h-4 w-4 text-brand" />
+              Supervisor
             </button>
             <button
               type="button"
@@ -91,7 +129,8 @@ function LoginForm() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <span>🚛</span> Driver
+              <Truck className="h-4 w-4 text-brand" />
+              Driver
             </button>
           </div>
         )}
@@ -120,7 +159,7 @@ function LoginForm() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={selectedRole === "supervisor" ? "supervisor@swachhsetu.gov.in" : "driver@swachhsetu.gov.in"}
+                  placeholder={selectedRole === "supervisor" ? "supervisor@swachhsetu.in" : "driver@swachhsetu.in"}
                   className="pl-9"
                   autoComplete="email"
                 />
@@ -173,6 +212,105 @@ function LoginForm() {
               : "Email reset link"}
           </Button>
         </form>
+
+        {/* Demo Credentials Box */}
+        {mode === "login" && (
+          <div className="mt-6 rounded-xl border border-border/80 bg-muted/30 p-3.5">
+            <div className="mb-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <KeyRound className="h-3.5 w-3.5 text-brand" />
+                <span>Demo Credentials</span>
+              </div>
+              <span className="text-[11px] text-muted-foreground">Click to auto-fill</span>
+            </div>
+
+            <div className="space-y-2">
+              {(["supervisor", "driver"] as const).map((role) => {
+                const creds = DEMO_CREDENTIALS[role];
+                const Icon = creds.icon;
+                const isSelected = selectedRole === role && email === creds.email && password === creds.password;
+
+                return (
+                  <div
+                    key={role}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fillDemoCredentials(role)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        fillDemoCredentials(role);
+                      }
+                    }}
+                    className={`group relative flex items-center justify-between rounded-lg border p-2.5 text-left transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      isSelected
+                        ? "border-brand bg-brand-muted/25 shadow-xs"
+                        : "border-border/70 bg-card/80 hover:border-border hover:bg-card"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        <Icon className="h-3.5 w-3.5 text-brand shrink-0" />
+                        <span className="text-xs font-semibold text-foreground">{creds.roleName}</span>
+                        <span className="text-[10px] text-muted-foreground truncate">({creds.portal})</span>
+                      </div>
+                      <div className="mt-1 space-y-0.5 text-[11px]">
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <span className="text-[10px] uppercase font-medium tracking-wider text-muted-foreground/70 w-9 shrink-0">Email:</span>
+                          <span className="font-mono text-foreground/90 font-medium truncate">{creds.email}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <span className="text-[10px] uppercase font-medium tracking-wider text-muted-foreground/70 w-9 shrink-0">Pass:</span>
+                          <span className="font-mono text-foreground/90 font-medium truncate">{creds.password}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(`${creds.email} | ${creds.password}`, `${role}-all`);
+                        }}
+                        className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                        title="Copy credentials"
+                      >
+                        {copiedKey === `${role}-all` ? (
+                          <Check className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant={isSelected ? "default" : "secondary"}
+                        className="h-7 px-2 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fillDemoCredentials(role);
+                        }}
+                      >
+                        {isSelected ? (
+                          <>
+                            <Check className="h-3 w-3" />
+                            <span>Active</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3 w-3 text-amber-500" />
+                            <span>Fill</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {mode !== "change" && (
           <button
