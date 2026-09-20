@@ -29,8 +29,8 @@ export function WasteSourceMap({
 
   if (!isClient) {
     return (
-      <div className={`w-full ${height} bg-slate-900/80 rounded-2xl border border-slate-800 flex items-center justify-center`}>
-        <div className="flex items-center gap-3 text-slate-400">
+      <div className={`w-full ${height} bg-card rounded-2xl border border-border flex items-center justify-center`}>
+        <div className="flex items-center gap-3 text-muted-foreground">
           <Layers className="w-5 h-5 animate-spin" />
           <span>Loading SwachhSetu Hotspot Map...</span>
         </div>
@@ -87,7 +87,7 @@ export function WasteSourceMap({
   const items = hotspots.length > 0 ? hotspots : sources;
 
   return (
-    <div className={`relative w-full ${height} rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-950`}>
+    <div className={`relative w-full ${height} rounded-2xl overflow-hidden border border-border shadow-md bg-card`}>
       <MapContainer center={center} zoom={12} className="w-full h-full z-0">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -121,14 +121,11 @@ export function WasteSourceMap({
               <Marker
                 position={[lat, lng]}
                 icon={createCustomIcon(risk, stype)}
-                eventHandlers={{
-                  click: () => onSelectSource(item.id),
-                }}
               >
                 <Popup className="dark-popup">
-                  <div className="p-2 min-w-[200px] text-slate-100">
-                    <div className="flex items-center justify-between gap-2 border-b border-slate-700 pb-1 mb-2">
-                      <span className="font-semibold text-sm truncate">{item.name}</span>
+                  <div className="p-2 min-w-[200px] text-foreground">
+                    <div className="flex items-center justify-between gap-2 border-b border-border pb-1 mb-2">
+                      <span className="font-semibold text-sm truncate text-foreground">{item.name}</span>
                       <span
                         className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase text-white"
                         style={{ backgroundColor: color }}
@@ -136,21 +133,21 @@ export function WasteSourceMap({
                         {risk}
                       </span>
                     </div>
-                    <div className="space-y-1 text-xs text-slate-300">
+                    <div className="space-y-1 text-xs text-muted-foreground">
                       <p>
-                        <span className="text-slate-400">Type:</span> {stype.toUpperCase()} ({item.industry_type || "General"})
+                        <span className="text-muted-foreground font-semibold">Type:</span> {stype.toUpperCase()} ({item.industry_type || "General"})
                       </p>
                       <p>
-                        <span className="text-slate-400">Predicted Waste:</span>{" "}
-                        <strong className="text-emerald-400">{item.predicted_quantity_kg || item.estimated_daily_generation_kg} kg</strong>
+                        <span className="text-muted-foreground font-semibold">Predicted Waste:</span>{" "}
+                        <strong className="text-emerald-600 dark:text-emerald-400">{item.predicted_quantity_kg || item.estimated_daily_generation_kg} kg</strong>
                       </p>
                       <p>
-                        <span className="text-slate-400">Dominant Type:</span> {item.predicted_waste_type || "Organic"}
+                        <span className="text-muted-foreground font-semibold">Dominant Type:</span> {item.predicted_waste_type || "Organic"}
                       </p>
                     </div>
                     <button
                       onClick={() => onSelectSource(item.id)}
-                      className="mt-3 w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition"
+                      className="mt-3 w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
                     >
                       View Supervisor Planning &rarr;
                     </button>
@@ -163,22 +160,22 @@ export function WasteSourceMap({
       </MapContainer>
 
       {/* Map Legend Floating Widget */}
-      <div className="absolute bottom-4 left-4 z-10 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-3 rounded-xl shadow-xl text-xs text-slate-300 space-y-1.5">
-        <span className="font-semibold text-slate-200 block border-b border-slate-800 pb-1">Hotspot Generation Risk</span>
+      <div className="absolute bottom-4 left-4 z-10 bg-card/90 backdrop-blur-md border border-border p-3 rounded-xl shadow-lg text-xs text-foreground space-y-1.5">
+        <span className="font-semibold text-foreground block border-b border-border pb-1">Hotspot Generation Risk</span>
         <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
+          <span className="w-3 h-3 rounded-full bg-red-500 shadow-xs shadow-red-500/50"></span>
           <span>Critical (&gt; 1500 kg)</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-orange-500 shadow-sm shadow-orange-500/50"></span>
+          <span className="w-3 h-3 rounded-full bg-orange-500 shadow-xs shadow-orange-500/50"></span>
           <span>High (800–1500 kg)</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-yellow-500 shadow-sm shadow-yellow-500/50"></span>
+          <span className="w-3 h-3 rounded-full bg-yellow-500 shadow-xs shadow-yellow-500/50"></span>
           <span>Medium (400–800 kg)</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+          <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-xs shadow-emerald-500/50"></span>
           <span>Low (&lt; 400 kg)</span>
         </div>
       </div>

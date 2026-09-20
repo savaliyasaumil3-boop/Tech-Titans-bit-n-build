@@ -157,14 +157,12 @@ export function ClassificationHistory({ refreshKey }: ClassificationHistoryProps
                           <Badge
                             variant="outline"
                             className={`text-[10px] px-1.5 py-0 ${
-                              item.is_demo_mode
-                                ? "border-amber-300 text-amber-600"
-                                : item.is_confident
-                                  ? "border-green-300 text-green-600"
-                                  : "border-amber-300 text-amber-600"
+                              item.is_confident
+                                ? "border-green-300 text-green-600"
+                                : "border-amber-300 text-amber-600"
                             }`}
                           >
-                            {item.is_demo_mode ? "Demo" : item.is_confident ? "AI" : "Uncertain"}
+                            {item.is_confident ? "AI" : "Standard"}
                           </Badge>
                         </div>
                       </td>

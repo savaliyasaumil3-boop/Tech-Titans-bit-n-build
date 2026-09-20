@@ -1,9 +1,11 @@
 "use client";
 
-import { Marker, Popup } from "react-leaflet";
+import { Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { SmartBin } from "@/lib/types";
 import { BinPopup } from "./bin-popup";
+
+import { useBin3DStore } from "@/lib/store/use-bin-3d-store";
 
 function getMarkerColor(fillLevel: number): string {
   if (fillLevel >= 80) return "#ef4444";
@@ -28,6 +30,7 @@ function createBinIcon(fillLevel: number) {
       border-radius: 50%;
       ${glow}
       transition: all 0.3s ease;
+      cursor: pointer;
     "></div>`,
   });
 }
@@ -37,13 +40,23 @@ interface BinMarkerProps {
 }
 
 export function BinMarker({ bin }: BinMarkerProps) {
+  const open3DViewer = useBin3DStore((state) => state.open3DViewer);
+  const map = useMap();
+
   return (
     <Marker
       position={[bin.lat, bin.lng]}
       icon={createBinIcon(bin.fillLevel)}
+      eventHandlers={{
+        click: (e) => {
+          e.target.closePopup();
+          setTimeout(() => map.closePopup(), 0);
+          open3DViewer(bin.id);
+        },
+      }}
     >
       <Popup maxWidth={280} minWidth={240} closeButton={false}>
-        <BinPopup bin={bin} />
+        <BinPopup bin={bin} onClose={() => map.closePopup()} />
       </Popup>
     </Marker>
   );

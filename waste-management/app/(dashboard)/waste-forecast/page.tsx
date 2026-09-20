@@ -24,6 +24,8 @@ import {
 import type { DbWasteSource, DbWasteForecast, AICollectionRecommendation, ModelMetrics } from "@/lib/db-types";
 import { Sparkles, MapPin, Truck, RefreshCw } from "lucide-react";
 
+import { Header } from "@/components/layout/header";
+
 export default function SupervisorWasteForecastPage() {
   const [sources, setSources] = useState<DbWasteSource[]>([]);
   const [forecasts, setForecasts] = useState<DbWasteForecast[]>([]);
@@ -74,37 +76,34 @@ export default function SupervisorWasteForecastPage() {
   const organicKg = forecasts.filter((f) => f.predicted_waste_type === "Organic").reduce((acc, f) => acc + f.predicted_quantity_kg, 0) || 28400;
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Top Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+    <>
+      <Header
+        title="AI Location-Wise Waste Forecast"
+        subtitle="Predict material streams, quantities, and peak generation times across Ahmedabad industrial & commercial clusters"
+      />
+
+      <div className="space-y-6 p-6 pb-12">
+        {/* Top Banner Control Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-md font-semibold">
+            <span className="text-xs font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md font-semibold">
               SUPERVISOR PLANNING & FORECASTING
             </span>
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-100 tracking-tight mt-1">
-            AI Location-Wise Waste Generation Forecast
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Predict what type of waste, how much waste, and when waste will be generated across Ahmedabad industrial & commercial clusters.
-          </p>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadData}
+              className="px-3 py-1.5 bg-card hover:bg-muted border border-border text-foreground rounded-xl text-xs transition shadow-xs flex items-center gap-2 font-medium cursor-pointer"
+              title="Refresh data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              <span>Refresh Forecasts</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadData}
-            className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs transition"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-      </div>
-
-      {/* Demo Data Banner */}
-      <DemoDataBanner />
-
-      {/* KPI Cards */}
+        {/* KPI Cards */}
       <WasteForecastKPIs
         totalSources={totalSources}
         totalPredictedKg={totalPredictedKg}
@@ -116,13 +115,13 @@ export default function SupervisorWasteForecastPage() {
       />
 
       {/* Interactive Map & Spatial Overview */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-md space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-emerald-500" />
             Ahmedabad Location Hotspot Generation Map
           </h3>
-          <span className="text-xs text-slate-400">Click any source marker for right-side supervisor planning</span>
+          <span className="text-xs text-muted-foreground">Click "View Supervisor Planning" inside marker popup to open side panel</span>
         </div>
         <WasteSourceMap
           sources={sources}
@@ -135,11 +134,11 @@ export default function SupervisorWasteForecastPage() {
       {/* AI Collection Recommendations Carousel / Grid */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-emerald-400" />
+          <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-emerald-500" />
             AI Collection & Vehicle Dispatch Recommendations
           </h3>
-          <span className="text-xs text-slate-400">Supervisor Approval Required</span>
+          <span className="text-xs text-muted-foreground">Supervisor Approval Required</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -165,6 +164,7 @@ export default function SupervisorWasteForecastPage() {
         onClose={() => setActiveSource(null)}
         onApproved={loadData}
       />
-    </div>
+      </div>
+    </>
   );
 }

@@ -62,46 +62,46 @@ export function LocationForecastTable({ forecasts, onSelectSource }: LocationFor
   const getRiskBadge = (risk: string) => {
     switch (risk?.toLowerCase()) {
       case "critical":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
+        return "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30";
       case "high":
-        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+        return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30";
       case "medium":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+        return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
       default:
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+        return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
     }
   };
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-bold text-slate-100">Location Waste Forecast Directory</h3>
-          <p className="text-xs text-slate-400">100 Active Waste Sources & ML Operational Predictions</p>
+          <h3 className="text-lg font-bold text-foreground">Location Waste Forecast Directory</h3>
+          <p className="text-xs text-muted-foreground">100 Active Waste Sources & ML Operational Predictions</p>
         </div>
 
         {/* Search Bar */}
         <div className="relative min-w-[260px]">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search source name, code, area..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+            className="w-full bg-background border border-input rounded-xl pl-9 pr-4 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition"
           />
         </div>
       </div>
 
       {/* Multi-Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-slate-800/80">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-border">
         <div>
-          <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">Source Type</label>
+          <label className="text-[10px] text-muted-foreground uppercase font-semibold block mb-1">Source Type</label>
           <select
             value={sourceTypeFilter}
             onChange={(e) => setSourceTypeFilter(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+            className="w-full bg-background border border-input rounded-xl px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary"
           >
             <option value="all">All Source Types</option>
             <option value="factory">Factory / Manufacturing</option>
@@ -116,11 +116,11 @@ export function LocationForecastTable({ forecasts, onSelectSource }: LocationFor
         </div>
 
         <div>
-          <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">Dominant Waste Type</label>
+          <label className="text-[10px] text-muted-foreground uppercase font-semibold block mb-1">Dominant Waste Type</label>
           <select
             value={wasteTypeFilter}
             onChange={(e) => setWasteTypeFilter(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+            className="w-full bg-background border border-input rounded-xl px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary"
           >
             <option value="all">All Waste Materials</option>
             <option value="Paper">Paper & Cardboard</option>
@@ -132,11 +132,11 @@ export function LocationForecastTable({ forecasts, onSelectSource }: LocationFor
         </div>
 
         <div>
-          <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">Overflow Risk Level</label>
+          <label className="text-[10px] text-muted-foreground uppercase font-semibold block mb-1">Overflow Risk Level</label>
           <select
             value={riskFilter}
             onChange={(e) => setRiskFilter(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+            className="w-full bg-background border border-input rounded-xl px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary"
           >
             <option value="all">All Risk Levels</option>
             <option value="critical">Critical (&gt; 1500 kg)</option>
@@ -148,24 +148,24 @@ export function LocationForecastTable({ forecasts, onSelectSource }: LocationFor
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-800">
-        <table className="w-full text-left text-xs text-slate-300">
-          <thead className="bg-slate-950 text-slate-400 uppercase font-mono text-[10px] border-b border-slate-800">
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full text-left text-xs text-foreground">
+          <thead className="bg-muted/70 text-muted-foreground uppercase font-mono text-[10px] border-b border-border">
             <tr>
-              <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => toggleSort("name")}>
+              <th className="py-3 px-4 cursor-pointer hover:text-foreground" onClick={() => toggleSort("name")}>
                 <div className="flex items-center gap-1">
                   Source Location <ArrowUpDown className="w-3 h-3" />
                 </div>
               </th>
               <th className="py-3 px-4">Type / Industry</th>
-              <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => toggleSort("quantity")}>
+              <th className="py-3 px-4 cursor-pointer hover:text-foreground" onClick={() => toggleSort("quantity")}>
                 <div className="flex items-center gap-1">
                   Predicted Today <ArrowUpDown className="w-3 h-3" />
                 </div>
               </th>
               <th className="py-3 px-4">Dominant Waste</th>
               <th className="py-3 px-4">Peak Generation</th>
-              <th className="py-3 px-4 cursor-pointer hover:text-slate-200" onClick={() => toggleSort("risk")}>
+              <th className="py-3 px-4 cursor-pointer hover:text-foreground" onClick={() => toggleSort("risk")}>
                 <div className="flex items-center gap-1">
                   Overflow Risk <ArrowUpDown className="w-3 h-3" />
                 </div>
@@ -174,38 +174,38 @@ export function LocationForecastTable({ forecasts, onSelectSource }: LocationFor
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
+          <tbody className="divide-y divide-border bg-card">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-500">
+                <td colSpan={7} className="py-8 text-center text-muted-foreground">
                   No waste sources match the selected filter criteria.
                 </td>
               </tr>
             ) : (
               sorted.slice(0, 30).map((fc) => (
-                <tr key={fc.source_id} className="hover:bg-slate-800/40 transition">
+                <tr key={fc.source_id} className="hover:bg-muted/50 transition">
                   <td className="py-3 px-4">
                     <div className="flex flex-col">
-                      <strong className="text-slate-100 font-semibold">{fc.source_name}</strong>
-                      <span className="text-[10px] font-mono text-emerald-400">{fc.source_code}</span>
+                      <strong className="text-foreground font-semibold">{fc.source_name}</strong>
+                      <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">{fc.source_code}</span>
                     </div>
                   </td>
 
-                  <td className="py-3 px-4 capitalize text-slate-300">
-                    <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px]">
+                  <td className="py-3 px-4 capitalize text-foreground">
+                    <span className="px-2 py-0.5 rounded bg-muted/60 border border-border text-[11px]">
                       {(fc.source_type || "Commercial").replace("_", " ")}
                     </span>
                   </td>
 
-                  <td className="py-3 px-4 font-mono font-extrabold text-emerald-400 text-sm">
+                  <td className="py-3 px-4 font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
                     {fc.predicted_quantity_kg} kg
                   </td>
 
                   <td className="py-3 px-4">
-                    <span className="font-bold text-amber-400">{fc.predicted_waste_type}</span>
+                    <span className="font-bold text-amber-600 dark:text-amber-400">{fc.predicted_waste_type}</span>
                   </td>
 
-                  <td className="py-3 px-4 font-mono text-slate-300">
+                  <td className="py-3 px-4 font-mono text-foreground">
                     {fc.peak_generation_hour}:00 PM
                   </td>
 
@@ -218,7 +218,7 @@ export function LocationForecastTable({ forecasts, onSelectSource }: LocationFor
                   <td className="py-3 px-4 text-right">
                     <button
                       onClick={() => onSelectSource(fc.source_id)}
-                      className="px-3 py-1.5 bg-emerald-600/90 hover:bg-emerald-500 text-white font-semibold rounded-lg text-[11px] transition shadow-md shadow-emerald-600/20 inline-flex items-center gap-1"
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-[11px] transition shadow-xs inline-flex items-center gap-1 cursor-pointer"
                     >
                       Inspect & Plan <ChevronRight className="w-3 h-3" />
                     </button>

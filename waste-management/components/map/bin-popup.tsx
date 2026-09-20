@@ -2,11 +2,12 @@
 
 import type { SmartBin } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Trash2 } from "lucide-react";
+import { Clock, MapPin, Trash2, X } from "lucide-react";
 import { useBin3DStore } from "@/lib/store/use-bin-3d-store";
 
 interface BinPopupProps {
   bin: SmartBin;
+  onClose?: () => void;
 }
 
 function statusBadge(status: string) {
@@ -21,6 +22,12 @@ function statusBadge(status: string) {
       return (
         <Badge className="bg-amber-500/10 text-amber-600 border-amber-200 text-[11px]">
           Warning
+        </Badge>
+      );
+    case "picked_up":
+      return (
+        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 text-[11px]">
+          Picked Up
         </Badge>
       );
     default:
@@ -38,15 +45,26 @@ function fillColor(level: number) {
   return "#16a34a";
 }
 
-export function BinPopup({ bin }: BinPopupProps) {
+export function BinPopup({ bin, onClose }: BinPopupProps) {
   return (
     <div className="p-3 min-w-[220px]">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 gap-2">
         <span className="font-mono text-xs text-muted-foreground">
           {bin.id}
         </span>
-        {statusBadge(bin.status)}
+        <div className="flex items-center gap-1.5">
+          {statusBadge(bin.status)}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors"
+              title="Close card"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Location */}
@@ -101,16 +119,19 @@ export function BinPopup({ bin }: BinPopupProps) {
       </div>
 
       {/* 3D Digital Twin Action */}
-      <Inspect3DButton binId={bin.id} />
+      <Inspect3DButton binId={bin.id} onAction={onClose} />
     </div>
   );
 }
 
-function Inspect3DButton({ binId }: { binId: string }) {
+function Inspect3DButton({ binId, onAction }: { binId: string; onAction?: () => void }) {
   const open3DViewer = useBin3DStore((state) => state.open3DViewer);
   return (
     <button
-      onClick={() => open3DViewer(binId)}
+      onClick={() => {
+        onAction?.();
+        open3DViewer(binId);
+      }}
       className="w-full py-1.5 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
     >
       <span>🧊</span>

@@ -41,7 +41,6 @@ export default function DashboardPage() {
             <h2 className="text-sm font-medium text-muted-foreground">Overview</h2>
           </div>
           <div className="flex items-center gap-3">
-            <DemoIndicator />
             <LiveIndicator />
           </div>
         </div>

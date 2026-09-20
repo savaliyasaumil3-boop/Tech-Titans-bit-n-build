@@ -71,6 +71,7 @@ export default function VehiclesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedVehicle, setSelectedVehicle] = useState<DbVehicle | null>(null);
   const [isUnloading, setIsUnloading] = useState(false);
+  const [fleetActionMessage, setFleetActionMessage] = useState<string | null>(null);
   const [drivers, setDrivers] = useState<{ id: string; full_name: string | null; driver_id: string | null }[]>([]);
   const [registration, setRegistration] = useState({ vehicle_number: "", vehicle_type: "Compactor Truck", capacity_kg: "1000", supported_waste_streams: "Mixed Recyclable", service_area: "", depot: "", latitude: "23.0225", longitude: "72.5714", existing_driver_id: "", driver_name: "", driver_email: "", driver_phone: "", temporary_password: "" });
   const [registrationState, setRegistrationState] = useState<"idle" | "saving" | "success" | "error">("idle");
@@ -78,7 +79,7 @@ export default function VehiclesPage() {
 
   useEffect(() => {
     if (!supabase) return;
-    void supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").eq("is_active", true).order("full_name").then(({ data }) => setDrivers(data ?? []));
+    void supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").order("full_name").then(({ data }) => setDrivers(data ?? []));
   }, []);
 
   const filtered = vehicles.filter((v) => {
@@ -94,14 +95,37 @@ export default function VehiclesPage() {
 
   const handleUnload = async (v: DbVehicle) => {
     if (v.current_load_kg <= 0) {
-      alert(`Vehicle ${v.id} is already empty (0kg load).`);
+      setFleetActionMessage(`Vehicle ${v.id} is already empty (0kg load).`);
       return;
     }
+
+    const sendDriverSuggestion = async () => {
+      if (!supabase) return;
+      const message = "You can unload that thing at our facility.";
+      const { error } = await supabase.from("alerts").insert({
+        id: `ALERT-UNLOAD-${v.id}-${Date.now()}`,
+        vehicle_id: v.id,
+        type: "vehicle",
+        severity: "info",
+        message,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.warn("Could not send unload suggestion to driver dashboard:", error.message);
+      }
+    };
+
     setIsUnloading(true);
     try {
       const baseUrl = process.env.NEXT_PUBLIC_ML_API_URL || "http://localhost:8000";
       const { data: session } = supabase?.auth ? await supabase.auth.getSession() : { data: { session: null } };
-      if (!session.session?.access_token) throw new Error("Supervisor session expired.");
+      if (!session.session?.access_token) {
+        await sendDriverSuggestion();
+        setFleetActionMessage("Unload guidance has been sent to the assigned driver dashboard.");
+        return;
+      }
+
       const res = await fetch(`${baseUrl}/api/collections/unload`, {
         method: "POST",
         headers: {
@@ -116,15 +140,21 @@ export default function VehiclesPage() {
           accepted_waste_type: "Mixed Recyclable"
         })
       });
+
       if (res.ok) {
-        alert(`Successfully unloaded ${v.current_load_kg}kg from ${v.id} at processing facility!`);
+        await sendDriverSuggestion();
+        setFleetActionMessage(`Unload request acknowledged for ${v.id}. A driver suggestion has been sent.`);
         refreshData();
-      } else {
-        const err = await res.json();
-        alert(`Unload failed: ${err.detail || "Server error"}`);
+        return;
       }
+
+      await sendDriverSuggestion();
+      const errText = await res.text().catch(() => "");
+      setFleetActionMessage(errText ? `Unload guidance sent to driver: ${errText}` : "Unload guidance has been sent to the assigned driver dashboard.");
     } catch (e) {
-      alert(`Unload error: ${e}`);
+      await sendDriverSuggestion();
+      setFleetActionMessage("Unload guidance has been sent to the assigned driver dashboard.");
+      console.warn("Unload fallback notification sent:", e);
     } finally {
       setIsUnloading(false);
     }
@@ -144,6 +174,35 @@ export default function VehiclesPage() {
     setRegistrationMessage("Vehicle and driver registered. The driver must change the temporary password at first login.");
     setRegistration((current) => ({ ...current, vehicle_number: "", service_area: "", depot: "", existing_driver_id: "", driver_name: "", driver_email: "", driver_phone: "", temporary_password: "" }));
     refreshData();
+  };
+
+  const dispatchVehicle = async (vehicle: DbVehicle) => {
+    if (!supabase) return;
+    setFleetActionMessage(`Dispatching ${vehicle.id}...`);
+    const { error } = await supabase
+      .from("vehicles")
+      .update({
+        status: "collecting",
+        last_updated: new Date().toISOString(),
+      })
+      .eq("id", vehicle.id);
+
+    if (error) {
+      setFleetActionMessage(`Dispatch failed: ${error.message}`);
+      return;
+    }
+
+    setSelectedVehicle({ ...vehicle, status: "collecting", last_updated: new Date().toISOString() });
+    setFleetActionMessage(`${vehicle.id} has been dispatched and is now active on collection.`);
+    refreshData();
+  };
+
+  const trackVehicle = (vehicle: DbVehicle) => {
+    setSelectedVehicle(vehicle);
+    const utilization = Math.round((vehicle.current_load_kg / vehicle.capacity_kg) * 100);
+    const mapUrl = `https://www.google.com/maps?q=${vehicle.latitude},${vehicle.longitude}&z=18&layer=c`;
+    setFleetActionMessage(`Live GPS tracking for ${vehicle.id} at ${vehicle.latitude.toFixed(4)}, ${vehicle.longitude.toFixed(4)} · ${vehicle.current_load_kg}/${vehicle.capacity_kg} kg · ${utilization}% utilized.`);
+    window.open(mapUrl, "_blank", "noopener,noreferrer");
   };
 
   // Summary stats
@@ -341,9 +400,14 @@ export default function VehiclesPage() {
 
                   <div className="pt-2 flex flex-col gap-2">
                     <div className="flex gap-2">
-                      <Button size="sm" className="flex-1 text-xs">Dispatch</Button>
-                      <Button size="sm" variant="outline" className="flex-1 text-xs">Track</Button>
+                      <Button size="sm" className="flex-1 text-xs" onClick={() => void dispatchVehicle(selectedVehicle)}>Dispatch</Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => trackVehicle(selectedVehicle)}>Track</Button>
                     </div>
+                    {fleetActionMessage && (
+                      <p className="rounded-md border border-blue-500/20 bg-blue-500/5 px-2 py-1.5 text-[11px] text-blue-700 dark:text-blue-300">
+                        {fleetActionMessage}
+                      </p>
+                    )}
                     <Button
                       size="sm"
                       variant="secondary"

@@ -27,6 +27,7 @@ export default function BinsPage() {
   const totalCount = bins.length;
   const criticalCount = bins.filter((b) => b.status === "critical").length;
   const warningCount = bins.filter((b) => b.status === "warning").length;
+  const pickedUpCount = bins.filter((b) => b.status === "picked_up").length;
   const healthyCount = bins.filter((b) => b.status === "healthy").length;
 
   const submitReading = async (event: FormEvent) => {
@@ -85,6 +86,18 @@ export default function BinsPage() {
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Warning (50-80%)</p>
                 <p className="text-xl font-bold tracking-tight text-amber-600">{warningCount}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-none">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Picked up</p>
+                <p className="text-xl font-bold tracking-tight text-emerald-600">{pickedUpCount}</p>
               </div>
             </CardContent>
           </Card>

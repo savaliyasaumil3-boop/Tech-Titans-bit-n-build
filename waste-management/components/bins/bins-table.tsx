@@ -38,6 +38,12 @@ function statusBadge(status: BinStatus) {
           Warning
         </Badge>
       );
+    case "picked_up":
+      return (
+        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 text-[11px]">
+          Picked Up
+        </Badge>
+      );
     default:
       return (
         <Badge className="bg-green-500/10 text-green-600 border-green-200 text-[11px]">

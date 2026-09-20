@@ -54,6 +54,7 @@ export function BinFilters({
           <SelectItem value="healthy">Healthy</SelectItem>
           <SelectItem value="warning">Warning</SelectItem>
           <SelectItem value="critical">Critical</SelectItem>
+          <SelectItem value="picked_up">Picked Up</SelectItem>
         </SelectContent>
       </Select>
 

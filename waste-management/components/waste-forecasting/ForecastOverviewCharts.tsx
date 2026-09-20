@@ -74,28 +74,35 @@ export function ForecastOverviewCharts({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
       {/* 1. Actual vs Predicted Waste Line Chart */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Actual vs Predicted Waste</h3>
-            <p className="text-xs text-slate-400">Daily forecast accuracy comparison (kg)</p>
+            <h3 className="text-sm font-bold text-foreground">Actual vs Predicted Waste</h3>
+            <p className="text-xs text-muted-foreground">Daily forecast accuracy comparison (kg)</p>
           </div>
-          <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+          <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md font-semibold">
             R² = 0.88
           </span>
         </div>
         <div className="h-[220px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={lineData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickLine={false} />
-              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} />
+              <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", fontSize: "12px" }}
+                contentStyle={{
+                  backgroundColor: "var(--popover)",
+                  borderColor: "var(--border)",
+                  color: "var(--popover-foreground)",
+                  borderRadius: "12px",
+                  fontSize: "12px",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                }}
                 formatter={(value: any) => [`${value.toLocaleString()} kg`, ""]}
               />
               <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
-              <Line type="monotone" dataKey="actual" name="Actual Collected" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="actual" name="Actual Collected" stroke="#0284c7" strokeWidth={2.5} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="predicted" name="AI Predicted" stroke="#10b981" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
@@ -103,11 +110,11 @@ export function ForecastOverviewCharts({
       </div>
 
       {/* 2. Waste Composition Donut Chart */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Forecast Waste Composition</h3>
-            <p className="text-xs text-slate-400">Material distribution breakdown (%)</p>
+            <h3 className="text-sm font-bold text-foreground">Forecast Waste Composition</h3>
+            <p className="text-xs text-muted-foreground">Material distribution breakdown (%)</p>
           </div>
         </div>
         <div className="h-[220px] w-full flex items-center justify-center">
@@ -127,7 +134,14 @@ export function ForecastOverviewCharts({
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", fontSize: "12px" }}
+                contentStyle={{
+                  backgroundColor: "var(--popover)",
+                  borderColor: "var(--border)",
+                  color: "var(--popover-foreground)",
+                  borderRadius: "12px",
+                  fontSize: "12px",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                }}
                 formatter={(value: any) => [`${value}%`, "Share"]}
               />
               <Legend wrapperStyle={{ fontSize: "11px" }} layout="horizontal" align="center" verticalAlign="bottom" />
@@ -137,21 +151,28 @@ export function ForecastOverviewCharts({
       </div>
 
       {/* 3. Waste Generation by Location Type Bar Chart */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col justify-between">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-100">Waste Generation by Source Type</h3>
-            <p className="text-xs text-slate-400">Total predicted output per category (kg)</p>
+            <h3 className="text-sm font-bold text-foreground">Waste Generation by Source Type</h3>
+            <p className="text-xs text-muted-foreground">Total predicted output per category (kg)</p>
           </div>
         </div>
         <div className="h-[220px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={barData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="type" stroke="#94a3b8" fontSize={10} tickLine={false} />
-              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="type" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} />
+              <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", fontSize: "12px" }}
+                contentStyle={{
+                  backgroundColor: "var(--popover)",
+                  borderColor: "var(--border)",
+                  color: "var(--popover-foreground)",
+                  borderRadius: "12px",
+                  fontSize: "12px",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                }}
                 formatter={(value: any) => [`${value.toLocaleString()} kg`, "Predicted"]}
               />
               <Bar dataKey="kg" name="Predicted Volume (kg)" fill="#a855f7" radius={[6, 6, 0, 0]} />
