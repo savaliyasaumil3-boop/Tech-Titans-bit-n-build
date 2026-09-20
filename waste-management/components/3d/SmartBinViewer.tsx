@@ -162,7 +162,7 @@ export function SmartBinViewer() {
           {/* Main Inspection Viewport Area */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
             {/* Left/Center: Interactive R3F 3D Canvas + Viewport Overlay Controls */}
-            <div className="lg:col-span-7 xl:col-span-8 relative flex flex-col p-4 bg-slate-950 border-r border-border">
+            <div className="lg:col-span-7 xl:col-span-8 relative flex flex-col p-4 bg-slate-100 dark:bg-slate-950 border-r border-border transition-colors">
               {/* R3F 3D Canvas */}
               <div className="flex-1 relative w-full h-full min-h-[360px]">
                 <SmartBinScene
