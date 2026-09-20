@@ -29,17 +29,127 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function normalizeProfileRecord(data: Record<string, unknown> | null): AuthProfile | null {
+  if (!data || typeof data.role !== "string") return null;
+  const role = data.role as string;
+  if (!["supervisor", "driver"].includes(role)) return null;
+
+  return {
+    id: String(data.id ?? ""),
+    role: role as AppRole,
+    full_name: typeof data.full_name === "string" ? data.full_name : null,
+    driver_id: typeof data.driver_id === "string" ? data.driver_id : null,
+    vehicle_id: typeof data.vehicle_id === "string" ? data.vehicle_id : null,
+    must_change_password: Boolean((data as { must_change_password?: boolean | null }).must_change_password ?? false),
+  };
+}
+
+function resolveRoleFromUser(user: User): AppRole {
+  const rawRole = (user.user_metadata?.role ?? user.app_metadata?.role ?? "driver") as string | undefined;
+  return rawRole === "supervisor" ? "supervisor" : "driver";
+}
+
+async function repairMissingProfile(user: User): Promise<AuthProfile | null> {
+  if (!supabase) return null;
+
+  const role = resolveRoleFromUser(user);
+  const fallbackProfile: AuthProfile = {
+    id: user.id,
+    role,
+    full_name: typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null,
+    driver_id: null,
+    vehicle_id: null,
+    must_change_password: false,
+  };
+
+  try {
+    const { error } = await supabase.from("profiles").upsert({
+      id: user.id,
+      role,
+      full_name: fallbackProfile.full_name,
+      driver_id: null,
+      vehicle_id: null,
+      must_change_password: false,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" });
+
+    if (error) {
+      const message = error.message.toLowerCase();
+      const isSchemaIssue = message.includes("does not exist") || message.includes("column") || message.includes("unknown column") || message.includes("not found");
+      if (isSchemaIssue) {
+        return fallbackProfile;
+      }
+      throw error;
+    }
+
+    const { data } = await supabase.from("profiles").select("id, role, full_name, driver_id, vehicle_id, must_change_password, is_active").eq("id", user.id).maybeSingle();
+    return normalizeProfileRecord((data ?? fallbackProfile) as Record<string, unknown>) ?? fallbackProfile;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const isSchemaIssue = message.toLowerCase().includes("does not exist") || message.toLowerCase().includes("column") || message.toLowerCase().includes("unknown column") || message.toLowerCase().includes("not found");
+    if (isSchemaIssue) {
+      return fallbackProfile;
+    }
+    throw error;
+  }
+}
+
 async function loadProfile(user: User): Promise<AuthProfile> {
   if (!supabase) throw new Error("Authentication is not configured.");
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, role, full_name, driver_id, vehicle_id, must_change_password")
-    .eq("id", user.id)
-    .single();
-  if (error || !data || !["supervisor", "driver"].includes(data.role)) {
-    throw new Error("Your account has no assigned SwachhSetu role.");
+
+  const fieldSets = [
+    "id, role, full_name, driver_id, vehicle_id, must_change_password, is_active",
+    "id, role, full_name, driver_id, vehicle_id, must_change_password",
+    "id, role, full_name, driver_id, vehicle_id",
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const columns of fieldSets) {
+    try {
+      const { data, error } = await supabase.from("profiles").select(columns).eq("id", user.id).maybeSingle();
+      if (!error && data) {
+        const normalized = normalizeProfileRecord(data as unknown as Record<string, unknown>);
+        if (normalized) {
+          return normalized;
+        }
+        const repaired = await repairMissingProfile(user);
+        if (repaired) return repaired;
+      }
+
+      if (!error && !data) {
+        const repaired = await repairMissingProfile(user);
+        if (repaired) return repaired;
+      }
+
+      if (error) {
+        const message = error.message.toLowerCase();
+        const isSchemaIssue = message.includes("does not exist") || message.includes("column") || message.includes("unknown column") || message.includes("not found");
+        if (!isSchemaIssue) {
+          throw error;
+        }
+        lastError = error;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      const isSchemaIssue = message.toLowerCase().includes("does not exist") || message.toLowerCase().includes("column") || message.toLowerCase().includes("unknown column") || message.toLowerCase().includes("not found");
+      if (isSchemaIssue) {
+        lastError = error instanceof Error ? error : new Error("Profile schema mismatch.");
+        continue;
+      }
+      throw error;
+    }
   }
-  return data as AuthProfile;
+
+  if (lastError) {
+    console.warn("Profile fallback query failed because the schema is older than the app expects:", lastError.message);
+  }
+
+  const repaired = await repairMissingProfile(user);
+  if (repaired) return repaired;
+
+  throw new Error("Your account has no assigned SwachhSetu role or the profiles table is not compatible with the app.");
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -112,11 +222,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const changePassword = async (password: string) => {
     if (!supabase) throw new Error("Authentication is not configured.");
     if (password.length < 10) throw new Error("Password must be at least 10 characters.");
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !sessionData.session?.user) {
+      throw new Error("Auth session missing. Please sign in again.");
+    }
+
+    const activeUser = user ?? sessionData.session.user;
     const { error: passwordError } = await supabase.auth.updateUser({ password });
     if (passwordError) throw new Error(passwordError.message);
-    if (user) {
-      const { error: profileError } = await supabase.from("profiles").update({ must_change_password: false, updated_at: new Date().toISOString() }).eq("id", user.id);
-      if (profileError) throw new Error(profileError.message);
+    if (activeUser) {
+      try {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ must_change_password: false, updated_at: new Date().toISOString() })
+          .eq("id", activeUser.id);
+
+        if (profileError) {
+          const message = profileError.message.toLowerCase();
+          if (!message.includes("does not exist") && !message.includes("column")) {
+            throw new Error(profileError.message);
+          }
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (!message.toLowerCase().includes("does not exist") && !message.toLowerCase().includes("column")) {
+          throw error;
+        }
+      }
       setProfile((current) => current ? { ...current, must_change_password: false } : current);
     }
   };

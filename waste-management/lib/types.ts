@@ -7,7 +7,7 @@ export type WasteType =
   | "E-Waste"
   | "Other";
 
-export type BinStatus = "healthy" | "warning" | "critical";
+export type BinStatus = "healthy" | "warning" | "critical" | "picked_up";
 
 export type VehicleStatus = "active" | "idle" | "maintenance";
 

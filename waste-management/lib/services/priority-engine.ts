@@ -80,32 +80,35 @@ export function buildPriorityBins(
   }
 
 
-  return bins.map((bin) => {
-    const pred = predMap.get(bin.id);
-    const overflowProb = pred?.overflow_probability ?? estimateOverflowProbability(bin.fill_percentage);
-    const predictedHours = pred?.predicted_full_hours ?? bin.predicted_full_hours;
+  return bins
+    .filter((bin) => bin.status !== "picked_up")
+    .map((bin) => {
+      const pred = predMap.get(bin.id);
+      const overflowProb = pred?.overflow_probability ?? estimateOverflowProbability(bin.fill_percentage);
+      const predictedHours = pred?.predicted_full_hours ?? bin.predicted_full_hours;
 
-    const score = calculatePriorityScore(
-      bin.fill_percentage,
-      predictedHours,
-      overflowProb,
-      bin.waste_type
-    );
+      const score = calculatePriorityScore(
+        bin.fill_percentage,
+        predictedHours,
+        overflowProb,
+        bin.waste_type
+      );
 
-    return {
-      bin_id: bin.id,
-      location_name: bin.location_name,
-      priority_score: score,
-      fill_percentage: bin.fill_percentage,
-      predicted_full_hours: predictedHours,
-      overflow_probability: overflowProb,
-      status: bin.status,
-      waste_type: bin.waste_type,
-      category: getPriorityCategory(score),
-      latitude: bin.latitude,
-      longitude: bin.longitude,
-    };
-  }).sort((a, b) => b.priority_score - a.priority_score);
+      return {
+        bin_id: bin.id,
+        location_name: bin.location_name,
+        priority_score: score,
+        fill_percentage: bin.fill_percentage,
+        predicted_full_hours: predictedHours,
+        overflow_probability: overflowProb,
+        status: bin.status,
+        waste_type: bin.waste_type,
+        category: getPriorityCategory(score),
+        latitude: bin.latitude,
+        longitude: bin.longitude,
+      };
+    })
+    .sort((a, b) => b.priority_score - a.priority_score);
 }
 
 // ─── Fallback overflow probability when ML service is unavailable ─────────────

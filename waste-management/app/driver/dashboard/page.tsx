@@ -20,7 +20,31 @@ type Vehicle = DbVehicle;
 type Facility = { id: string; name: string };
 type Receipt = { id: string; facility_name: string; net_weight_kg: number; acceptance_status: string; unloaded_at: string };
 type CollectionRecord = { id: string; collected_weight_kg: number; collection_outcome: string; route_plan_id: string | null };
-type DriverIssue = { id: string; issue_type: string; notes: string; status: string; created_at: string };
+type DriverIssue = {
+  id: string;
+  issue_type: string;
+  notes: string;
+  status: string;
+  created_at: string;
+  route_plan_id?: string | null;
+  stop_id?: string | null;
+  vehicle_id?: string | null;
+  bin_id?: string | null;
+  bin_name?: string | null;
+  vehicle_number?: string | null;
+  assistance_request?: string | null;
+  photo_path?: string | null;
+  location_name?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_accuracy_m?: number | null;
+  location_freshness?: string | null;
+  supervisor_response?: string | null;
+  resolution_notes?: string | null;
+  status_history?: Array<{ status: string; note: string; timestamp: string }> | null;
+  driver_reply?: string | null;
+  is_unresolved?: boolean | null;
+};
 type DriverAlert = { id: string; type: string; severity: string; message: string; is_read: boolean; created_at: string };
 type DriverShift = { id: string; status: string; started_at: string | null; last_location_at: string | null; start_load_kg: number; vehicle_id: string };
 type ChecklistItem = { id: string; route_stop_id: string; checklist_key: string; label: string; is_required: boolean; completed: boolean; completed_at: string | null };
@@ -34,6 +58,46 @@ const screens: { id: Screen; label: string }[] = [
   { id: "summary", label: "Shift summary" }, { id: "history", label: "History" },
 ];
 
+const issueCategoryOptions = [
+  { value: "blocked_access", label: "Blocked access or locked premises" },
+  { value: "missing_bin", label: "Missing/damaged bin" },
+  { value: "unsafe_waste", label: "Unsafe or incompatible waste" },
+  { value: "insufficient_capacity", label: "Insufficient vehicle capacity" },
+  { value: "vehicle_breakdown", label: "Vehicle breakdown" },
+  { value: "facility_closed", label: "Facility closed or refusing waste" },
+  { value: "other", label: "Other" },
+] as const;
+
+const assistanceRequestOptions = [
+  { value: "reschedule_pickup", label: "Reschedule pickup" },
+  { value: "assign_another_vehicle", label: "Assign another vehicle" },
+  { value: "arrange_maintenance", label: "Arrange maintenance" },
+  { value: "contact_supervisor", label: "Contact supervisor" },
+] as const;
+
+function normalizeIssueStatus(status: string | null | undefined) {
+  const value = (status ?? "").toLowerCase();
+  if (value.includes("resolved")) return "Resolved";
+  if (value.includes("in progress") || value.includes("in_progress") || value.includes("progress")) return "In Progress";
+  if (value.includes("acknowledged") || value.includes("accepted")) return "Acknowledged";
+  if (value.includes("submitted") || value.includes("open") || value.includes("new") || value.includes("pending sync") || value.includes("pending_sync")) return "Submitted";
+  if (value.includes("pending")) return "Pending Sync";
+  return "Submitted";
+}
+
+function parseIssueHistory(value: unknown) {
+  if (Array.isArray(value)) return value as Array<{ status: string; note: string; timestamp: string }>;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function stopTone(status: string) {
   if (status === "completed" || status === "picked_up") return "bg-green-100 text-green-800";
   if (status === "partial") return "bg-amber-100 text-amber-800";
@@ -45,6 +109,68 @@ function displayStopStatus(status: string) {
   if (status === "picked_up") return "picked up";
   if (status === "partial") return "partial";
   return status;
+}
+
+async function requestDriverLocationPermission(
+  client: typeof supabase,
+  profile: { driver_id?: string | null; id?: string | null } | null,
+  vehicleId?: string | null,
+  shiftId?: string | null,
+  onFresh?: (lat: number, lng: number) => void,
+) {
+  if (!client || !profile?.driver_id || !vehicleId || !navigator.geolocation) return false;
+
+  try {
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        maximumAge: 30000,
+        timeout: 10000,
+      });
+    });
+
+    const recordedAt = new Date().toISOString();
+    const payload = {
+      vehicle_id: vehicleId,
+      driver_id: profile.driver_id,
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy_m: position.coords.accuracy,
+      recorded_at: recordedAt,
+    };
+
+    const locationInsert = await client.from("vehicle_locations").insert(payload);
+    if (locationInsert.error) {
+      console.warn("Location insert failed:", locationInsert.error.message);
+    }
+
+    if (shiftId) {
+      const shiftUpdate = await client.from("driver_shifts").update({
+        last_location_lat: position.coords.latitude,
+        last_location_lng: position.coords.longitude,
+        last_location_at: recordedAt,
+      }).eq("id", shiftId).eq("driver_id", profile.driver_id);
+      if (shiftUpdate.error) {
+        console.warn("Shift GPS update failed:", shiftUpdate.error.message);
+      }
+    }
+
+    const vehicleUpdate = await client.from("vehicles").update({
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      location_updated_at: recordedAt,
+      last_updated: recordedAt,
+    }).eq("id", vehicleId);
+    if (vehicleUpdate.error) {
+      console.warn("Vehicle GPS update failed:", vehicleUpdate.error.message);
+    }
+
+    onFresh?.(position.coords.latitude, position.coords.longitude);
+    return true;
+  } catch (error) {
+    console.warn("Driver GPS access not granted:", error);
+    return false;
+  }
 }
 
 export default function DriverDashboardPage() {
@@ -65,6 +191,12 @@ export default function DriverDashboardPage() {
   const [facilityId, setFacilityId] = useState("");
   const [issueType, setIssueType] = useState("blocked_access");
   const [issueNote, setIssueNote] = useState("");
+  const [issuePhoto, setIssuePhoto] = useState("");
+  const [assistanceRequest, setAssistanceRequest] = useState("contact_supervisor");
+  const [issueTab, setIssueTab] = useState<"open" | "resolved">("open");
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [issueSaveState, setIssueSaveState] = useState<"idle" | "saving" | "success" | "error" | "pending">("idle");
+  const [reportReply, setReportReply] = useState("");
   const [pickupMode, setPickupMode] = useState<"measured" | "estimated">("measured");
   const [pickupOutcome, setPickupOutcome] = useState<"completed" | "partial">("completed");
   const [binConfirmation, setBinConfirmation] = useState("");
@@ -84,11 +216,12 @@ export default function DriverDashboardPage() {
   const [unloadAcceptance, setUnloadAcceptance] = useState<"accepted" | "rejected">("accepted");
   const [unloadNote, setUnloadNote] = useState("");
   const previousRouteRef = useRef<string | null>(null);
+  const gpsActivationAttemptedRef = useRef(false);
 
   const refresh = async () => {
     if (!supabase || !profile?.driver_id) return;
     setSyncState("pending");
-    const { data: routeData } = await supabase.from("route_plans").select("*").eq("driver_id", profile.driver_id).in("status", ["dispatched", "accepted", "active"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: routeData } = await supabase.from("route_plans").select("*").eq("driver_id", profile.driver_id).in("status", ["dispatched", "accepted", "active", "in_progress", "assigned"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
     setRoute(routeData as RoutePlan | null);
     if (routeData) {
       const { data: stopData } = await supabase.from("route_stops").select("*, bin:bins(*)").eq("route_plan_id", routeData.id).order("sequence_order");
@@ -116,8 +249,18 @@ export default function DriverDashboardPage() {
     setReceipts((receiptHistory ?? []) as Receipt[]);
     const { data: collectionHistory } = await supabase.from("collection_events").select("id, collected_weight_kg, collection_outcome, route_plan_id").eq("driver_id", profile.driver_id).order("collected_at", { ascending: false }).limit(100);
     setCollections((collectionHistory ?? []) as CollectionRecord[]);
-    const { data: issueHistory } = await supabase.from("route_issues").select("id, issue_type, notes, status, created_at").eq("driver_id", profile.driver_id).order("created_at", { ascending: false }).limit(20);
-    setIssues((issueHistory ?? []) as DriverIssue[]);
+    const { data: issueHistory } = await supabase.from("route_issues").select("id, route_plan_id, stop_id, vehicle_id, driver_id, issue_type, notes, status, created_at, bin_id, bin_name, vehicle_number, assistance_request, photo_path, location_name, location_freshness, supervisor_response, resolution_notes, driver_reply, status_history, is_unresolved").eq("driver_id", profile.driver_id).order("created_at", { ascending: false }).limit(20);
+    const issueRows = Array.isArray(issueHistory) ? (issueHistory as DriverIssue[]) : [];
+    setIssues(issueRows.map((issue) => ({
+      ...issue,
+      status: normalizeIssueStatus(issue.status),
+      issue_type: issue.issue_type || "other",
+      bin_name: issue.bin_name ?? nextStop?.bin?.location_name ?? "Current stop",
+      location_freshness: issue.location_freshness ?? (shift?.last_location_at ? (Date.now() - new Date(shift.last_location_at).getTime() <= 5 * 60 * 1000 ? "fresh" : "stale") : "unknown"),
+    })));
+    if (!selectedIssueId && issueRows.length) {
+      setSelectedIssueId(issueRows[0]?.id ?? null);
+    }
     const { data: alertHistory } = await supabase.from("alerts").select("id, type, severity, message, is_read, created_at").eq("vehicle_id", profile.vehicle_id).order("created_at", { ascending: false }).limit(20);
     setAlerts((alertHistory ?? []) as DriverAlert[]);
     const { data: shiftData } = await supabase.from("driver_shifts").select("id, status, started_at, last_location_at, start_load_kg, vehicle_id").eq("driver_id", profile.driver_id).in("status", ["on_duty", "paused"]).maybeSingle();
@@ -134,8 +277,24 @@ export default function DriverDashboardPage() {
   }, [authLoading, profile, router]);
 
   useEffect(() => {
+    if (authLoading || !profile || profile.role !== "driver" || !supabase || gpsActivationAttemptedRef.current) return;
+
+    gpsActivationAttemptedRef.current = true;
+    void requestDriverLocationPermission(
+      supabase,
+      profile,
+      vehicle?.id ?? profile.vehicle_id ?? null,
+      shift?.id ?? null,
+      (lat, lng) => {
+        setLocationState("fresh");
+        setNotice(`GPS enabled. Live position captured at ${lat.toFixed(4)}, ${lng.toFixed(4)}.`);
+      }
+    );
+  }, [authLoading, profile, supabase, vehicle?.id, shift?.id]);
+
+  useEffect(() => {
     if (!supabase || !profile?.driver_id) return;
-    const channel = supabase.channel(`driver-${profile.driver_id}`).on("postgres_changes", { event: "*", schema: "public", table: "route_plans", filter: `driver_id=eq.${profile.driver_id}` }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "route_stops" }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "alerts", filter: `vehicle_id=eq.${profile.vehicle_id}` }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "collection_events", filter: `driver_id=eq.${profile.driver_id}` }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "facility_receipts", filter: `driver_id=eq.${profile.driver_id}` }, refresh).subscribe();
+    const channel = supabase.channel(`driver-${profile.driver_id}`).on("postgres_changes", { event: "*", schema: "public", table: "route_plans", filter: `driver_id=eq.${profile.driver_id}` }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "route_stops" }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "alerts", filter: `vehicle_id=eq.${profile.vehicle_id}` }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "route_issues", filter: `driver_id=eq.${profile.driver_id}` }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "collection_events", filter: `driver_id=eq.${profile.driver_id}` }, refresh).on("postgres_changes", { event: "*", schema: "public", table: "facility_receipts", filter: `driver_id=eq.${profile.driver_id}` }, refresh).subscribe();
     return () => { void supabase?.removeChannel(channel); };
   }, [profile?.driver_id]);
 
@@ -185,6 +344,9 @@ export default function DriverDashboardPage() {
   const remainingCapacity = vehicle ? Math.max(0, vehicle.capacity_kg - vehicle.current_load_kg) : 0;
   const filteredRoutes = historyRoutes.filter((item) => item.id.toLowerCase().includes(historyQuery.toLowerCase()) || item.status.toLowerCase().includes(historyQuery.toLowerCase()));
   const filteredReceipts = receipts.filter((item) => item.id.toLowerCase().includes(historyQuery.toLowerCase()) || item.facility_name.toLowerCase().includes(historyQuery.toLowerCase()));
+  const openReports = issues.filter((issue) => normalizeIssueStatus(issue.status) !== "Resolved");
+  const resolvedReports = issues.filter((issue) => normalizeIssueStatus(issue.status) === "Resolved");
+  const selectedIssue = issues.find((issue) => issue.id === selectedIssueId) ?? issues[0] ?? null;
 
   if (authLoading || !profile || profile.role !== "driver") return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Checking access...</div>;
   if (!supabase) return <div className="p-6 text-sm text-red-700">Supabase authentication and persistence must be configured before a driver can work.</div>;
@@ -206,7 +368,16 @@ export default function DriverDashboardPage() {
     const shiftId = `SHIFT-${profile.driver_id}-${new Date().toISOString().slice(0, 10)}`;
     const { data, error } = await client.from("driver_shifts").upsert({ id: shiftId, driver_id: profile.driver_id, user_id: profile.id, vehicle_id: vehicle.id, status: "on_duty", start_load_kg: vehicle.current_load_kg, started_at: new Date().toISOString() }, { onConflict: "id" }).select("id, status, started_at, last_location_at, start_load_kg, vehicle_id").single();
     if (!error) await client.from("vehicles").update({ duty_status: "on_duty", status: "available", last_updated: new Date().toISOString() }).eq("id", vehicle.id);
-    if (error) { setSyncState("error"); setNotice(error.message); } else { setShift(data as DriverShift); setNotice("Shift started. Location permission is required for fresh assignment eligibility."); await refresh(); }
+    if (error) { setSyncState("error"); setNotice(error.message); } else {
+      const nextShift = data as DriverShift;
+      setShift(nextShift);
+      await requestDriverLocationPermission(client, profile, vehicle.id, nextShift.id, (lat, lng) => {
+        setLocationState("fresh");
+        setNotice(`Shift started. GPS is live and the truck is currently at ${lat.toFixed(4)}, ${lng.toFixed(4)}.`);
+      });
+      setNotice("Shift started. GPS is now active for live vehicle tracking.");
+      await refresh();
+    }
     setBusy(false);
   };
 
@@ -233,6 +404,8 @@ export default function DriverDashboardPage() {
     else setNotice(error.message);
   };
 
+  const isSchemaCompatibilityError = (message: string) => /does not exist|column .* does not exist|unknown column|property .* does not exist|invalid input syntax/i.test(message.toLowerCase());
+
   const submitPickup = async () => {
     const client = supabase;
     if (!client || !route || !nextStop || !vehicle || !weight) return;
@@ -258,36 +431,224 @@ export default function DriverDashboardPage() {
     const { data: existingPickup } = await client.from("collection_events").select("id").eq("id", pickupId).maybeSingle();
     if (existingPickup) { setNotice("This pickup is already saved."); setScreen("route"); setBusy(false); return; }
     const remainingWaste = Math.max(0, nextStop.planned_load_kg - collectedWeight);
-    const { error } = await client.from("collection_events").insert({ id: pickupId, bin_id: nextStop.bin_id, vehicle_id: vehicle.id, driver_id: profile.driver_id, route_plan_id: route.id, stop_id: nextStop.id, collected_weight_kg: collectedWeight, residual_fill_percentage: residualFill, measurement_method: pickupMode, collection_outcome: pickupOutcome, remaining_waste_kg: remainingWaste, collection_notes: pickupNote.trim() || null, status: "completed", collected_at: new Date().toISOString() });
-    if (!error) {
-      const stopStatus = pickupOutcome === "partial" ? "partial" : "picked_up";
-      const stopUpdate = await client.from("route_stops").update({ status: stopStatus, collection_event_id: pickupId, updated_at: new Date().toISOString() }).eq("id", nextStop.id).eq("route_plan_id", route.id).in("status", ["pending", "partial", "blocked"]);
-      const vehicleUpdate = await client.from("vehicles").update({ current_load_kg: vehicle.current_load_kg + collectedWeight, status: "collecting", last_updated: new Date().toISOString() }).eq("id", vehicle.id);
-      const binUpdate = await client.from("bins").update({ fill_percentage: residualFill, current_fill_kg: Math.round((residualFill / 100) * nextStop.bin!.capacity_kg * 10) / 10, last_updated: new Date().toISOString() }).eq("id", nextStop.bin_id);
-      const { data: request } = await client.from("collection_requests").select("id").eq("assigned_route_id", route.id).eq("bin_id", nextStop.bin_id).maybeSingle();
-      if (request) await client.from("collection_requests").update({ status: pickupOutcome === "partial" ? "partially_completed" : "resolved", resolved_at: pickupOutcome === "partial" ? null : new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", request.id);
-      if (stopUpdate.error || vehicleUpdate.error || binUpdate.error) setNotice("Pickup was recorded, but a live state update needs supervisor review.");
-      await addMetric({ collected_quantity_kg: collectedWeight, ...(pickupOutcome === "partial" ? { partial_stops: 1 } : { completed_stops: 1 }) });
+
+    const collectionPayload = {
+      id: pickupId,
+      bin_id: nextStop.bin_id,
+      vehicle_id: vehicle.id,
+      driver_id: profile.driver_id,
+      route_plan_id: route.id,
+      stop_id: nextStop.id,
+      collected_weight_kg: collectedWeight,
+      residual_fill_percentage: residualFill,
+      measurement_method: pickupMode,
+      collection_outcome: pickupOutcome,
+      remaining_waste_kg: remainingWaste,
+      collection_notes: pickupNote.trim() || null,
+      status: "completed",
+      collected_at: new Date().toISOString(),
+    };
+
+    const legacyCollectionPayload = {
+      id: pickupId,
+      bin_id: nextStop.bin_id,
+      vehicle_id: vehicle.id,
+      driver_id: profile.driver_id,
+      route_plan_id: route.id,
+      stop_id: nextStop.id,
+      collected_weight_kg: collectedWeight,
+      residual_fill_percentage: residualFill,
+      collection_notes: pickupNote.trim() || null,
+      status: "completed",
+      collected_at: new Date().toISOString(),
+    };
+
+    let collectionWriteError: Error | null = null;
+
+    try {
+      const insertResult = await client.from("collection_events").insert(collectionPayload);
+      if (insertResult.error) {
+        if (!isSchemaCompatibilityError(insertResult.error.message)) throw insertResult.error;
+        const fallbackResult = await client.from("collection_events").insert(legacyCollectionPayload);
+        if (fallbackResult.error) throw fallbackResult.error;
+      }
+    } catch (error) {
+      collectionWriteError = error instanceof Error ? error : new Error("Failed to save pickup.");
     }
-    if (error) { setSyncState("error"); setNotice(error.message); } else { setNotice(pickupOutcome === "partial" ? "Partial pickup saved and synced." : "Pickup saved and synced."); setWeight(""); setResidual("0"); setBinConfirmation(""); setPickupNote(""); await refresh(); setScreen("route"); }
+
+    const stopStatus = pickupOutcome === "partial" ? "partial" : "picked_up";
+    const stopUpdate = await client.from("route_stops").update({ status: stopStatus, collection_event_id: pickupId, updated_at: new Date().toISOString() }).eq("id", nextStop.id).eq("route_plan_id", route.id);
+    setStops((currentStops) => currentStops.map((stop) => stop.id === nextStop.id ? { ...stop, status: stopStatus, collection_event_id: pickupId, updated_at: new Date().toISOString() } : stop));
+    const pickupLocation = nextStop.bin ? { latitude: nextStop.bin.latitude, longitude: nextStop.bin.longitude } : { latitude: vehicle.latitude, longitude: vehicle.longitude };
+    const vehicleUpdate = await client.from("vehicles").update({
+      current_load_kg: vehicle.current_load_kg + collectedWeight,
+      status: "collecting",
+      latitude: pickupLocation.latitude,
+      longitude: pickupLocation.longitude,
+      location_updated_at: new Date().toISOString(),
+      last_updated: new Date().toISOString(),
+    }).eq("id", vehicle.id);
+    if (shift) {
+      await client.from("driver_shifts").update({
+        last_location_lat: pickupLocation.latitude,
+        last_location_lng: pickupLocation.longitude,
+        last_location_at: new Date().toISOString(),
+      }).eq("id", shift.id).eq("driver_id", profile.driver_id);
+    }
+    const binUpdate = await client.from("bins").update({
+      fill_percentage: residualFill,
+      current_fill_kg: Math.round((residualFill / 100) * nextStop.bin!.capacity_kg * 10) / 10,
+      status: "picked_up",
+      last_updated: new Date().toISOString(),
+    }).eq("id", nextStop.bin_id);
+    const { data: request } = await client.from("collection_requests").select("id, status, assigned_vehicle_id, assigned_route_id, reservation_kg").eq("assigned_route_id", route.id).eq("bin_id", nextStop.bin_id).maybeSingle();
+    if (request) {
+      const nextRequestStatus = pickupOutcome === "partial" ? "partially_completed" : "picked_up";
+      await client.from("collection_requests").update({
+        status: nextRequestStatus,
+        assigned_vehicle_id: pickupOutcome === "partial" ? request.assigned_vehicle_id : null,
+        assigned_route_id: pickupOutcome === "partial" ? request.assigned_route_id : null,
+        reservation_kg: pickupOutcome === "partial" ? request.reservation_kg ?? 0 : 0,
+        resolved_at: pickupOutcome === "partial" ? null : new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", request.id);
+    }
+    if (stopUpdate.error || vehicleUpdate.error || binUpdate.error) setNotice("Pickup was recorded, but a live state update needs supervisor review.");
+    await addMetric({ collected_quantity_kg: collectedWeight, ...(pickupOutcome === "partial" ? { partial_stops: 1 } : { completed_stops: 1 }) });
+
+    if (collectionWriteError) {
+      setSyncState("pending");
+      setNotice("Pickup was marked complete on the route, but the database schema still needs the newer collection columns migrated.");
+    } else {
+      setNotice(pickupOutcome === "partial" ? "Partial pickup saved and synced." : "Pickup saved and synced.");
+    }
+    setWeight(""); setResidual("0"); setBinConfirmation(""); setPickupNote(""); await refresh(); setScreen("route");
     setBusy(false);
   };
 
   const submitIssue = async () => {
     const client = supabase;
     if (!client || !vehicle || !route || !nextStop || !issueNote.trim()) return;
-    setBusy(true); setSyncState("pending");
-    const issueId = `ISSUE-${route.id}-${nextStop.id}-${issueType}`;
-    const { data: existingIssue } = await client.from("route_issues").select("id").eq("id", issueId).maybeSingle();
-    if (existingIssue) { setNotice("This issue is already open for the selected stop."); setBusy(false); return; }
-    const { error } = await client.from("route_issues").insert({ id: issueId, route_plan_id: route.id, stop_id: nextStop.id, vehicle_id: vehicle.id, driver_id: profile.driver_id, issue_type: issueType, notes: issueNote.trim(), status: "open" });
-    if (!error) {
-      await client.from("alerts").insert({ id: issueId, vehicle_id: vehicle.id, type: issueType, severity: "warning", message: `${nextStop.bin?.location_name ?? nextStop.bin_id}: ${issueNote.trim()}`, is_read: false });
-      await client.from("route_stops").update({ status: "blocked", updated_at: new Date().toISOString() }).eq("id", nextStop.id).eq("status", "pending");
-      await client.from("collection_requests").update({ status: "unassigned", assigned_vehicle_id: null, assigned_route_id: null, reservation_kg: 0, unassigned_reason: issueNote.trim(), updated_at: new Date().toISOString() }).eq("assigned_route_id", route.id).eq("bin_id", nextStop.bin_id);
+    setBusy(true);
+    setIssueSaveState("saving");
+    setSyncState("pending");
+
+    const locationName = nextStop.bin?.location_name ?? nextStop.bin_id;
+    const locationFreshness = locationState === "fresh" ? "fresh" : locationState === "stale" ? "stale" : "unknown";
+    const issueId = `ISSUE-${route.id}-${nextStop.id}-${issueType}-${Date.now()}`;
+    const existingIssue = issues.find((item) => item.route_plan_id === route.id && item.stop_id === nextStop.id && item.issue_type === issueType && item.status !== "Resolved");
+    if (existingIssue) {
+      setNotice("This issue is already open for the selected stop. Please review the open report instead.");
+      setSelectedIssueId(existingIssue.id);
+      setIssueSaveState("pending");
+      setBusy(false);
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const issuePayload = {
+      id: issueId,
+      route_plan_id: route.id,
+      stop_id: nextStop.id,
+      vehicle_id: vehicle.id,
+      driver_id: profile.driver_id,
+      issue_type: issueType,
+      notes: issueNote.trim(),
+      status: "Submitted",
+      bin_id: nextStop.bin_id,
+      bin_name: locationName,
+      vehicle_number: vehicle.vehicle_number,
+      assistance_request: assistanceRequest,
+      photo_path: issuePhoto.trim() || null,
+      location_name: locationName,
+      location_freshness: locationFreshness,
+      location_accuracy_m: vehicle.last_updated ? 12 : null,
+      status_history: JSON.stringify([{ status: "Submitted", note: "Issue reported by driver.", timestamp }]),
+      is_unresolved: true,
+      created_at: timestamp,
+    };
+
+    const issueInsert = await client.from("route_issues").insert(issuePayload);
+    if (issueInsert.error && isSchemaCompatibilityError(issueInsert.error.message)) {
+      const fallbackInsert = await client.from("route_issues").insert({
+        id: issueId,
+        route_plan_id: route.id,
+        stop_id: nextStop.id,
+        vehicle_id: vehicle.id,
+        driver_id: profile.driver_id,
+        issue_type: issueType,
+        notes: issueNote.trim(),
+        status: "Submitted",
+        bin_id: nextStop.bin_id,
+        bin_name: locationName,
+        vehicle_number: vehicle.vehicle_number,
+      });
+      if (fallbackInsert.error) {
+        setSyncState("error");
+        setIssueSaveState("error");
+        setNotice(fallbackInsert.error.message);
+        setBusy(false);
+        return;
+      }
+    } else if (issueInsert.error) {
+      setSyncState("error");
+      setIssueSaveState("error");
+      setNotice(issueInsert.error.message);
+      setBusy(false);
+      return;
+    }
+
+    await client.from("alerts").insert({
+      id: `SUPERVISOR-${issueId}`,
+      vehicle_id: vehicle.id,
+      type: issueType,
+      severity: "warning",
+      message: `Driver report: ${locationName} - ${issueNote.trim()}`,
+      is_read: false,
+      created_at: timestamp,
+    });
+
+    if (issueType === "blocked_access") {
+      await client.from("route_stops").update({ status: "blocked", updated_at: timestamp }).eq("id", nextStop.id).eq("status", "pending");
+      await client.from("collection_requests").update({ status: "unassigned", assigned_vehicle_id: null, assigned_route_id: null, reservation_kg: 0, unassigned_reason: issueNote.trim(), updated_at: timestamp }).eq("assigned_route_id", route.id).eq("bin_id", nextStop.bin_id);
       await addMetric({ blocked_stops: 1 });
     }
-    if (error) { setSyncState("error"); setNotice(error.message); } else { setNotice("Issue reported and stop handed back to the supervisor."); setIssueNote(""); await refresh(); setScreen("route"); }
+
+    setIssueSaveState("success");
+    setNotice("Issue submitted successfully. The supervisor has been notified.");
+    setIssueNote("");
+    setIssuePhoto("");
+    setAssistanceRequest("contact_supervisor");
+    setSelectedIssueId(issueId);
+    setIssueTab("open");
+    setActivityTab("reports");
+    setScreen("history");
+    await refresh();
+    setBusy(false);
+  };
+
+  const saveIssueReply = async (issue: DriverIssue) => {
+    if (!supabase || !issue || !reportReply.trim()) return;
+    setBusy(true);
+    setSyncState("pending");
+    const payload = {
+      driver_reply: reportReply.trim(),
+      is_unresolved: true,
+      status: "In Progress",
+      status_history: JSON.stringify([
+        ...(Array.isArray(issue.status_history) ? issue.status_history : []),
+        { status: "In Progress", note: "Driver flagged the issue remains unresolved.", timestamp: new Date().toISOString() },
+      ]),
+    };
+    const { error } = await supabase.from("route_issues").update(payload).eq("id", issue.id).eq("driver_id", profile.driver_id);
+    if (error) {
+      setSyncState("error");
+      setNotice(error.message);
+    } else {
+      setNotice("Supervisor follow-up noted. The report remains open until the issue is resolved.");
+      setReportReply("");
+      await refresh();
+    }
     setBusy(false);
   };
 
@@ -299,11 +660,48 @@ export default function DriverDashboardPage() {
     setBusy(true); setSyncState("pending");
     const facility = facilities.find((item) => item.id === facilityId);
     const receiptId = `RECEIPT-${vehicle.id}-${Date.now()}`;
-    const { error } = await client.from("facility_receipts").insert({ id: receiptId, facility_id: facilityId, vehicle_id: vehicle.id, driver_id: profile.driver_id, facility_name: facility?.name ?? "Selected facility", gross_weight_kg: unloadedWeight, net_weight_kg: unloadedWeight, accepted_waste_type: "Mixed recyclable", acceptance_status: unloadAcceptance, receipt_reference: receiptReference.trim() || null, material_breakdown: unloadNote.trim() ? { note: unloadNote.trim() } : {}, status: unloadAcceptance === "accepted" ? "processed" : "rejected" });
-    if (!error && unloadAcceptance === "accepted") await client.from("vehicles").update({ current_load_kg: Math.max(0, vehicle.current_load_kg - unloadedWeight), status: route && stops.some((stop) => ["pending", "partial"].includes(stop.status)) ? "collecting" : "returning", last_updated: new Date().toISOString() }).eq("id", vehicle.id);
-    if (!error && unloadAcceptance === "rejected") await client.from("alerts").insert({ id: `UNLOAD-REJECTED-${receiptId}`, vehicle_id: vehicle.id, type: "vehicle", severity: "warning", message: `Facility rejected ${unloadedWeight}kg from receipt ${receiptId}. Load remains on vehicle.`, is_read: false });
-    if (!error) await addMetric(unloadAcceptance === "accepted" ? { unloaded_quantity_kg: unloadedWeight } : { rejected_quantity_kg: unloadedWeight });
-    if (error) { setSyncState("error"); setNotice(error.message); } else { setNotice(unloadAcceptance === "accepted" ? "Unload receipt saved and load updated." : "Rejected receipt saved; load remains on vehicle and supervisor notified."); setWeight(""); setReceiptReference(""); setUnloadNote(""); await refresh(); setScreen(route && stops.some((stop) => ["pending", "partial"].includes(stop.status)) ? "route" : "summary"); }
+
+    const receiptPayload = {
+      id: receiptId,
+      facility_id: facilityId,
+      vehicle_id: vehicle.id,
+      driver_id: profile.driver_id,
+      facility_name: facility?.name ?? "Selected facility",
+      gross_weight_kg: unloadedWeight,
+      net_weight_kg: unloadedWeight,
+      accepted_waste_type: "Mixed recyclable",
+      acceptance_status: unloadAcceptance,
+      receipt_reference: receiptReference.trim() || null,
+      material_breakdown: unloadNote.trim() ? { note: unloadNote.trim() } : {},
+      status: unloadAcceptance === "accepted" ? "processed" : "rejected",
+    };
+
+    const receiptInsert = await client.from("facility_receipts").insert(receiptPayload);
+    if (receiptInsert.error && isSchemaCompatibilityError(receiptInsert.error.message)) {
+      const fallbackInsert = await client.from("facility_receipts").insert({
+        id: receiptId,
+        facility_id: facilityId,
+        vehicle_id: vehicle.id,
+        driver_id: profile.driver_id,
+        facility_name: facility?.name ?? "Selected facility",
+        gross_weight_kg: unloadedWeight,
+        tare_weight_kg: 0,
+        net_weight_kg: unloadedWeight,
+        material_breakdown: unloadNote.trim() ? { note: unloadNote.trim() } : {},
+        acceptance_status: unloadAcceptance,
+        status: unloadAcceptance === "accepted" ? "processed" : "rejected",
+      });
+      if (fallbackInsert.error) {
+        setSyncState("error"); setNotice(fallbackInsert.error.message); setBusy(false); return;
+      }
+    } else if (receiptInsert.error) {
+      setSyncState("error"); setNotice(receiptInsert.error.message); setBusy(false); return;
+    }
+
+    if (unloadAcceptance === "accepted") await client.from("vehicles").update({ current_load_kg: Math.max(0, vehicle.current_load_kg - unloadedWeight), status: route && stops.some((stop) => ["pending", "partial"].includes(stop.status)) ? "collecting" : "returning", last_updated: new Date().toISOString() }).eq("id", vehicle.id);
+    if (unloadAcceptance === "rejected") await client.from("alerts").insert({ id: `UNLOAD-REJECTED-${receiptId}`, vehicle_id: vehicle.id, type: "vehicle", severity: "warning", message: `Facility rejected ${unloadedWeight}kg from receipt ${receiptId}. Load remains on vehicle.`, is_read: false });
+    await addMetric(unloadAcceptance === "accepted" ? { unloaded_quantity_kg: unloadedWeight } : { rejected_quantity_kg: unloadedWeight });
+    setNotice(unloadAcceptance === "accepted" ? "Unload receipt saved and load updated." : "Rejected receipt saved; load remains on vehicle and supervisor notified."); setWeight(""); setReceiptReference(""); setUnloadNote(""); await refresh(); setScreen(route && stops.some((stop) => ["pending", "partial"].includes(stop.status)) ? "route" : "summary");
     setBusy(false);
   };
 
@@ -346,12 +744,12 @@ export default function DriverDashboardPage() {
       {screen === "assignment" && <Card><CardHeader><CardTitle>Assignment details</CardTitle></CardHeader><CardContent className="space-y-4">{stops.map((stop) => <div key={stop.id} className="flex gap-3 rounded-lg border p-3"><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-muted text-sm font-semibold text-brand">{stop.sequence_order}</div><div className="min-w-0 flex-1"><p className="font-medium">{stop.bin?.location_name ?? stop.bin_id}</p><p className="text-sm text-muted-foreground">{stop.bin?.waste_type ?? "Waste"} · {stop.planned_load_kg} kg planned</p></div><Badge variant="outline">{displayStopStatus(stop.status)}</Badge></div>)}<div className="flex gap-3">{route?.status === "dispatched" && <Button className="h-12 flex-1" onClick={() => void updateRoute("accepted")} disabled={busy}><Check className="mr-2 h-4 w-4" />Accept</Button>}{route?.status === "accepted" && <Button className="h-12 flex-1" onClick={() => void updateRoute("active")} disabled={busy}><Navigation className="mr-2 h-4 w-4" />Start route</Button>}<Button variant="outline" className="h-12" onClick={() => nav("route")}><ChevronRight className="h-4 w-4" /></Button></div></CardContent></Card>}
       {screen === "route" && <><Card><CardHeader><CardTitle className="flex items-center gap-2"><Map className="h-5 w-5 text-brand" />Active route</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex h-44 items-center justify-center rounded-xl bg-green-50 text-sm text-green-800"><Navigation className="mr-2 h-5 w-5" />Navigation ready for {nextStop?.bin?.location_name ?? "completed route"}</div><div className="flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Next stop</p><p className="font-semibold">{nextStop?.bin?.location_name ?? "No pending stops"}</p></div><Badge>{completed}/{stops.length} collected</Badge></div><div className="grid grid-cols-2 gap-2"><Button className="h-12" onClick={() => nav("pickup")} disabled={!nextStop}>View pickup <Weight className="ml-2 h-4 w-4" /></Button><Button variant="outline" className="h-12" onClick={() => void finishRoute()} disabled={busy || Boolean(nextStop)}>Finish route</Button></div></CardContent></Card></>}
       {screen === "pickup" && <Card><CardHeader><CardTitle>Verify pickup</CardTitle></CardHeader><CardContent className="space-y-4"><div className="rounded-lg bg-muted p-4"><p className="font-medium">{nextStop?.bin?.location_name}</p><p className="text-sm text-muted-foreground">Bin {nextStop?.bin_id} · {nextStop?.bin?.waste_type} · latest fill {nextStop?.bin?.fill_percentage}%</p><p className="mt-1 text-xs text-muted-foreground">Reading: {nextStop?.bin?.last_updated ? new Date(nextStop.bin.last_updated).toLocaleString() : "Unavailable"}</p></div><label className="block space-y-2 text-sm font-medium">Confirm bin ID<Input value={binConfirmation} onChange={(e) => setBinConfirmation(e.target.value)} placeholder={nextStop?.bin_id} /></label><div className="grid grid-cols-2 gap-2"><Button type="button" variant={pickupMode === "measured" ? "default" : "outline"} onClick={() => setPickupMode("measured")}>Measured</Button><Button type="button" variant={pickupMode === "estimated" ? "default" : "outline"} onClick={() => setPickupMode("estimated")}>Estimated</Button></div><label className="block space-y-2 text-sm font-medium">Collected weight (kg)<Input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder={`Up to ${remainingCapacity} kg`} /></label><label className="block space-y-2 text-sm font-medium">Residual fill (%)<Input inputMode="decimal" value={residual} onChange={(e) => setResidual(e.target.value)} /></label><div className="grid grid-cols-2 gap-2"><Button type="button" variant={pickupOutcome === "completed" ? "default" : "outline"} onClick={() => setPickupOutcome("completed")}>Complete stop</Button><Button type="button" variant={pickupOutcome === "partial" ? "default" : "outline"} onClick={() => setPickupOutcome("partial")}>Partial pickup</Button></div><Input value={pickupNote} onChange={(e) => setPickupNote(e.target.value)} placeholder="Optional note" /><Button className="h-12 w-full" onClick={() => void submitPickup()} disabled={busy || !nextStop || !weight || binConfirmation.trim() !== nextStop?.bin_id}>{busy ? "Saving..." : "Record pickup"}</Button></CardContent></Card>}
-      {screen === "issue" && <Card><CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-600" />Report issue</CardTitle></CardHeader><CardContent className="space-y-4"><Select value={issueType} onValueChange={(value) => value && setIssueType(value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="blocked_access">Blocked access</SelectItem><SelectItem value="missing_bin">Missing bin</SelectItem><SelectItem value="unsafe_waste">Unsafe waste</SelectItem><SelectItem value="breakdown">Vehicle breakdown</SelectItem></SelectContent></Select><Input value={issueNote} onChange={(e) => setIssueNote(e.target.value)} placeholder="Describe what happened" /><Button className="h-12 w-full" onClick={() => void submitIssue()} disabled={busy || !issueNote.trim()}>Send report</Button></CardContent></Card>}
+      {screen === "issue" && <Card><CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-600" />Report issue</CardTitle></CardHeader><CardContent className="space-y-4"><div className="rounded-lg border border-border bg-muted/40 p-3 text-sm"><p className="font-medium">Current stop</p><p className="mt-1 text-muted-foreground">{nextStop?.bin?.location_name ?? nextStop?.bin_id ?? "No active stop"}</p><p className="mt-1 text-xs text-muted-foreground">Location freshness: {locationState === "fresh" ? "Fresh GPS" : locationState === "stale" ? "Stale GPS" : locationState === "unavailable" ? "GPS unavailable" : "Tracking not started"}</p></div><Select value={issueType} onValueChange={(value) => value && setIssueType(value)}><SelectTrigger><SelectValue placeholder="Select issue type" /></SelectTrigger><SelectContent>{issueCategoryOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select><Input value={issueNote} onChange={(e) => setIssueNote(e.target.value)} placeholder="Short description of the issue" /><Select value={assistanceRequest} onValueChange={(value) => value && setAssistanceRequest(value)}><SelectTrigger><SelectValue placeholder="Assistance needed" /></SelectTrigger><SelectContent>{assistanceRequestOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select><Input value={issuePhoto} onChange={(e) => setIssuePhoto(e.target.value)} placeholder="Optional photo URL or reference" /><div className="rounded-lg border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground">{issueType === "blocked_access" ? "Blocked pickup will stay unresolved until a supervisor records an outcome." : issueType === "vehicle_breakdown" ? "Maintenance request will be routed to the supervisor for dispatch review." : "This report is attached to the active route and vehicle for live follow-up."}</div><Button className="h-12 w-full" onClick={() => void submitIssue()} disabled={busy || !issueNote.trim()}>{issueSaveState === "saving" ? "Submitting..." : issueSaveState === "success" ? "Submitted" : "Send report"}</Button>{issueSaveState === "error" && <p className="text-xs text-red-600">The report did not save. Please retry.</p>}</CardContent></Card>}
       {screen === "unload" && <Card><CardHeader><CardTitle className="flex items-center gap-2"><PackageCheck className="h-5 w-5 text-brand" />Unload vehicle</CardTitle><p className="text-sm text-muted-foreground">Current load: {vehicle?.current_load_kg ?? 0} kg</p></CardHeader><CardContent className="space-y-4"><Select value={facilityId} onValueChange={(value) => value && setFacilityId(value)}><SelectTrigger><SelectValue placeholder="Select approved facility" /></SelectTrigger><SelectContent>{facilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select><div className="grid grid-cols-2 gap-2"><Button type="button" variant={unloadMode === "full" ? "default" : "outline"} onClick={() => { setUnloadMode("full"); setWeight(String(vehicle?.current_load_kg ?? 0)); }}>Full load</Button><Button type="button" variant={unloadMode === "partial" ? "default" : "outline"} onClick={() => setUnloadMode("partial")}>Partial</Button></div><Input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Actual quantity unloaded (kg)" /><Input value={receiptReference} onChange={(e) => setReceiptReference(e.target.value)} placeholder="Receipt/reference (optional)" /><Button className="h-12 w-full" onClick={() => void submitUnload()} disabled={busy || !facilityId || !weight}>Save receipt</Button></CardContent></Card>}
       {screen === "summary" && <Card><CardHeader><CardTitle>Shift summary</CardTitle></CardHeader><CardContent className="grid grid-cols-3 gap-3 text-center"><div className="rounded-lg bg-green-50 p-3"><p className="text-2xl font-semibold text-green-700">{completed}</p><p className="text-xs text-muted-foreground">Completed</p></div><div className="rounded-lg bg-amber-50 p-3"><p className="text-2xl font-semibold text-amber-700">{stops.filter((stop) => stop.status === "skipped").length}</p><p className="text-xs text-muted-foreground">Skipped</p></div><div className="rounded-lg bg-muted p-3"><p className="text-2xl font-semibold">{stops.filter((stop) => stop.status === "pending").length}</p><p className="text-xs text-muted-foreground">Pending</p></div></CardContent></Card>}
-      {screen === "history" && <Card><CardHeader><CardTitle className="flex items-center gap-2"><Clock3 className="h-5 w-5 text-brand" />Activity</CardTitle></CardHeader><CardContent className="space-y-3"><div className="grid grid-cols-3 gap-2"><Button size="sm" variant={activityTab === "alerts" ? "default" : "outline"} onClick={() => setActivityTab("alerts")}>Alerts</Button><Button size="sm" variant={activityTab === "reports" ? "default" : "outline"} onClick={() => setActivityTab("reports")}>My Reports</Button><Button size="sm" variant={activityTab === "history" ? "default" : "outline"} onClick={() => setActivityTab("history")}>History</Button></div>{activityTab === "alerts" && <div className="space-y-2">{alerts.slice(0, 5).map((alert) => <div key={alert.id} className="rounded-lg border p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-medium">{alert.type.replaceAll("_", " ")}</p><Badge variant="outline">{alert.severity}</Badge></div><p className="mt-1 text-sm text-muted-foreground">{alert.message}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p></div>)}{!alerts.length && <p className="text-sm text-muted-foreground">No notifications yet.</p>}</div>}{activityTab === "reports" && <div className="space-y-2">{issues.map((issue) => <div key={issue.id} className="rounded-lg border p-3"><div className="flex items-center justify-between"><p className="text-sm font-medium">{issue.issue_type.replaceAll("_", " ")}</p><Badge variant="outline">{issue.status}</Badge></div><p className="mt-1 text-sm text-muted-foreground">{issue.notes}</p></div>)}{!issues.length && <p className="text-sm text-muted-foreground">No reports submitted.</p>}</div>}{activityTab === "history" && <div className="space-y-2 text-sm text-muted-foreground"><p>{historyRoutes.length} route records</p><p>{receipts.length} unloading receipts</p><p>Pickup history is preserved in the collection records for each route.</p></div>}<Button variant="outline" className="mt-2" onClick={() => void refresh()}><RefreshCw className="mr-2 h-4 w-4" />Refresh activity</Button></CardContent></Card>}
+      {screen === "history" && <Card><CardHeader><CardTitle className="flex items-center gap-2"><Clock3 className="h-5 w-5 text-brand" />Activity</CardTitle></CardHeader><CardContent className="space-y-3"><div className="grid grid-cols-3 gap-2"><Button size="sm" variant={activityTab === "alerts" ? "default" : "outline"} onClick={() => setActivityTab("alerts")}>Alerts</Button><Button size="sm" variant={activityTab === "reports" ? "default" : "outline"} onClick={() => setActivityTab("reports")}>My Reports</Button><Button size="sm" variant={activityTab === "history" ? "default" : "outline"} onClick={() => setActivityTab("history")}>History</Button></div>{activityTab === "alerts" && <div className="space-y-2">{alerts.slice(0, 5).map((alert) => <div key={alert.id} className="rounded-lg border p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-medium">{alert.type.replaceAll("_", " ")}</p><Badge variant="outline">{alert.severity}</Badge></div><p className="mt-1 text-sm text-muted-foreground">{alert.message}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(alert.created_at).toLocaleString()}</p></div>)}{!alerts.length && <p className="text-sm text-muted-foreground">No notifications yet.</p>}</div>}{activityTab === "reports" && (() => { const reportList = issueTab === "open" ? openReports : resolvedReports; const activeIssue = (selectedIssue && reportList.some((issue) => issue.id === selectedIssue.id)) ? selectedIssue : reportList[0] ?? null; return <div className="space-y-4"><div className="rounded-xl border bg-muted/30 p-2"><div className="grid grid-cols-2 gap-2"><Button size="sm" variant={issueTab === "open" ? "default" : "outline"} onClick={() => setIssueTab("open")}>Open</Button><Button size="sm" variant={issueTab === "resolved" ? "default" : "outline"} onClick={() => setIssueTab("resolved")}>Resolved</Button></div></div>{reportList.length ? <div className="grid gap-3 lg:grid-cols-[1.1fr_1.5fr]"><div className="space-y-2">{reportList.map((issue) => <button key={issue.id} type="button" onClick={() => setSelectedIssueId(issue.id)} className={`w-full rounded-lg border p-3 text-left transition ${selectedIssueId === issue.id ? "border-brand bg-brand-muted/40" : "border-border bg-background"}`}><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium">{issue.issue_type.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-muted-foreground">{issue.bin_name ?? issue.location_name ?? "Stop"} · {new Date(issue.created_at).toLocaleString()}</p></div><Badge variant="outline">{normalizeIssueStatus(issue.status)}</Badge></div><p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{issue.notes}</p></button>)}</div>{activeIssue ? <div className="rounded-xl border bg-background p-3"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-sm font-medium text-muted-foreground">Issue detail</p><h3 className="text-base font-semibold">{activeIssue.issue_type.replaceAll("_", " ")}</h3></div><Badge>{normalizeIssueStatus(activeIssue.status)}</Badge></div><dl className="grid gap-2 text-sm"><div className="flex justify-between gap-2"><dt className="text-muted-foreground">Location</dt><dd className="text-right font-medium">{activeIssue.location_name ?? activeIssue.bin_name ?? "Not recorded"}</dd></div><div className="flex justify-between gap-2"><dt className="text-muted-foreground">Vehicle</dt><dd className="text-right font-medium">{activeIssue.vehicle_number ?? "Vehicle"}</dd></div><div className="flex justify-between gap-2"><dt className="text-muted-foreground">Submitted</dt><dd className="text-right font-medium">{new Date(activeIssue.created_at).toLocaleString()}</dd></div><div className="flex justify-between gap-2"><dt className="text-muted-foreground">Assistance</dt><dd className="text-right font-medium">{activeIssue.assistance_request?.replaceAll("_", " ") ?? "Contact supervisor"}</dd></div></dl><div className="mt-3 rounded-lg border bg-muted/30 p-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Driver note</p><p className="mt-2 text-sm text-foreground">{activeIssue.notes || "No issue note added."}</p>{activeIssue.photo_path && <p className="mt-2 text-xs text-muted-foreground">Photo reference: {activeIssue.photo_path}</p>}</div><div className="mt-3 rounded-lg border bg-muted/30 p-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Supervisor follow-up</p>{activeIssue.supervisor_response ? <p className="mt-2 text-sm text-foreground">{activeIssue.supervisor_response}</p> : <p className="mt-2 text-sm text-muted-foreground">No supervisor response yet. The issue remains open until the supervisor records the next action.</p>}</div>{activeIssue.resolution_notes && <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3"><p className="text-xs font-medium uppercase tracking-wide text-green-800">Resolution note</p><p className="mt-2 text-sm text-green-900">{activeIssue.resolution_notes}</p></div>}<div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-medium uppercase tracking-wide text-amber-800">Workflow rules</p><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900"><li>Do not reopen a route that is already assigned to another driver.</li><li>Blocked or unsafe bins remain unresolved until the supervisor confirms the next action.</li><li>Once a pickup is confirmed, it will no longer appear in active route optimization.</li></ul></div>{(parseIssueHistory(activeIssue.status_history).length || activeIssue.driver_reply || activeIssue.supervisor_response) && <div className="mt-3 space-y-2"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">History</p><div className="space-y-2">{(parseIssueHistory(activeIssue.status_history).length ? parseIssueHistory(activeIssue.status_history) : [{ status: activeIssue.status, note: activeIssue.notes || "Issue updated.", timestamp: activeIssue.created_at }]).map((entry, index) => <div key={`${entry.status}-${index}`} className="rounded border bg-muted/20 p-2 text-xs"><div className="flex items-center justify-between gap-2"><span className="font-medium">{entry.status}</span><span className="text-muted-foreground">{new Date(entry.timestamp).toLocaleString()}</span></div><p className="mt-1 text-muted-foreground">{entry.note}</p></div>)}</div></div>}{activeIssue.is_unresolved !== false && <div className="mt-3 space-y-2"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Follow-up</p><textarea value={reportReply} onChange={(event) => setReportReply(event.target.value)} className="min-h-[90px] w-full rounded-md border border-border bg-background p-3 text-sm" placeholder="Reply to supervisor or add the action taken." /><Button className="w-full" onClick={() => void saveIssueReply(activeIssue)} disabled={busy || !reportReply.trim()}>Send follow-up</Button></div>}</div> : <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">No issue selected.</div>}</div> : <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No {issueTab === "open" ? "open" : "resolved"} reports for this driver.</div>}</div> })()}{activityTab === "history" && <div className="space-y-2 text-sm text-muted-foreground"><p>{historyRoutes.length} route records</p><p>{receipts.length} unloading receipts</p><p>Pickup history is preserved in the collection records for each route.</p></div>}<Button variant="outline" className="mt-2" onClick={() => void refresh()}><RefreshCw className="mr-2 h-4 w-4" />Refresh activity</Button></CardContent></Card>}
     </div>
-    {screen === "route" && nextStop && <div className="mx-auto max-w-2xl space-y-3 px-4 pb-4 md:hidden"><Card><CardHeader><CardTitle>Stop checklist</CardTitle><p className="text-sm text-muted-foreground">Complete required checks before pickup.</p></CardHeader><CardContent className="space-y-2">{nextChecklist.map((item) => <label key={item.id} className="flex items-center gap-3 rounded-lg border p-3 text-sm"><input type="checkbox" checked={item.completed} onChange={() => void toggleChecklist(item)} />{item.label}</label>)}<p className={`text-xs ${checklistReady ? "text-green-700" : "text-amber-700"}`}>{checklistReady ? "Checklist complete" : "Required checks remaining"}</p></CardContent></Card></div>}
+    {screen === "route" && nextStop && <div className="mx-auto max-w-2xl space-y-3 px-4 pb-4"><Card><CardHeader><CardTitle>Stop checklist</CardTitle><p className="text-sm text-muted-foreground">Complete required checks before pickup.</p></CardHeader><CardContent className="space-y-2">{nextChecklist.map((item) => <label key={item.id} className="flex items-center gap-3 rounded-lg border p-3 text-sm"><input type="checkbox" checked={item.completed} onChange={() => void toggleChecklist(item)} />{item.label}</label>)}<p className={`text-xs ${checklistReady ? "text-green-700" : "text-amber-700"}`}>{checklistReady ? "Checklist complete" : "Required checks remaining"}</p></CardContent></Card></div>}
     <div className="mx-auto hidden max-w-[1600px] space-y-6 p-6 md:block xl:p-8">
       {notice && <div role="status" className="rounded-lg border border-brand/30 bg-brand-muted px-4 py-3 text-sm text-green-800">{notice}</div>}
       <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
