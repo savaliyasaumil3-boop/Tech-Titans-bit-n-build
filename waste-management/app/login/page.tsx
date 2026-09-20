@@ -2,7 +2,7 @@
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, Copy, KeyRound, LockKeyhole, Mail, Recycle, ShieldCheck, Sparkles, Truck } from "lucide-react";
+import { ArrowLeft, Check, Copy, Info, KeyRound, LockKeyhole, Mail, Recycle, RefreshCw, ShieldCheck, Sparkles, Truck } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,6 +147,26 @@ function LoginForm() {
             ? "Your temporary password must be replaced before operational actions are enabled."
             : `Log in to access the ${selectedRole === "supervisor" ? "Municipal Supervisor Control Center" : "Driver Route & Shift Dashboard"}.`}
         </p>
+
+        {/* Render Free Server Notice */}
+        <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-start gap-2.5">
+            <div className="mt-0.5 rounded-md bg-amber-500/20 p-1 text-amber-700 dark:text-amber-300 shrink-0">
+              <Info className="h-4 w-4" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-semibold text-amber-950 dark:text-amber-100 flex items-center gap-1.5">
+                Server Cold Start Notice
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:text-amber-200">
+                  <RefreshCw className="h-2.5 w-2.5 animate-spin" /> Render Free Tier
+                </span>
+              </p>
+              <p className="text-amber-900/90 dark:text-amber-200/90 leading-relaxed">
+                Render backend servers spin down when idle and take ~1 minute to spin up upon receiving a request. If logging in fails or takes long, please <strong>wait 1 minute, refresh the page, and try logging in again</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
 
         <form onSubmit={submit} className="mt-7 space-y-4">
           {mode !== "change" && (
