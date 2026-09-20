@@ -33,11 +33,27 @@ export default function RoutesPage() {
   const [requests, setRequests] = useState<{ id: string; bin_id: string; status: string; assigned_vehicle_id: string | null; required_quantity_kg: number }[]>([]);
 
   const availableVehicles = vehicles.filter(v => v.status === "available" || v.status === "collecting");
+  const refreshRequests = async () => {
+    const client = supabase;
+    if (!client) return;
+    const { data } = await client.from("collection_requests").select("id, bin_id, status, assigned_vehicle_id, required_quantity_kg").in("status", ["unassigned", "assigned", "accepted", "in_progress", "partially_completed"]).order("updated_at", { ascending: false });
+    setRequests(data ?? []);
+  };
 
   useEffect(() => {
-    if (!supabase) return;
-    void supabase.from("profiles").select("id, full_name, driver_id, vehicle_id").eq("role", "driver").then(({ data }) => setDrivers(data ?? []));
-    void supabase.from("collection_requests").select("id, bin_id, status, assigned_vehicle_id, required_quantity_kg").in("status", ["unassigned", "assigned", "partially_completed", "resolved", "picked_up"]).then(({ data }) => setRequests(data ?? []));
+    const client = supabase;
+    if (!client) return;
+
+    void client.from("profiles").select("id, full_name, driver_id, vehicle_id").eq("role", "driver").then(({ data }) => setDrivers(data ?? []));
+    void refreshRequests();
+
+    const channel = client
+      .channel("route-request-assignment-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "collection_requests" }, () => void refreshRequests())
+      .on("postgres_changes", { event: "*", schema: "public", table: "route_plans" }, () => void refreshRequests())
+      .subscribe();
+
+    return () => { void client.removeChannel(channel); };
   }, []);
 
   const handleOptimize = async () => {
@@ -50,9 +66,16 @@ export default function RoutesPage() {
       return;
     }
 
+    const assignedBinIds = new Set(
+      requests
+        .filter((request) => request.assigned_vehicle_id)
+        .map((request) => request.bin_id)
+    );
+
     const requestBins = priorityBins.filter((bin) => {
-      const alreadyAssignedElsewhere = requests.some((request) => request.bin_id === bin.bin_id && request.assigned_vehicle_id && request.assigned_vehicle_id !== vehicle.id);
-      return !alreadyAssignedElsewhere;
+      const alreadyAssignedElsewhere = assignedBinIds.has(bin.bin_id);
+      const isPickedUp = bins.some((dbBin) => dbBin.id === bin.bin_id && dbBin.status === "picked_up");
+      return !alreadyAssignedElsewhere && !isPickedUp;
     });
 
     const mappedBins = requestBins.map(pb => {
@@ -98,7 +121,7 @@ export default function RoutesPage() {
       setDispatchMessage("Local route planner used from live bin records; review before dispatch.");
     }
 
-    route.stops = route.stops.filter((stop) => !typedRequests.some((request) => request.bin_id === stop.id && request.assigned_vehicle_id && request.assigned_vehicle_id !== vehicle.id));
+    route.stops = route.stops.filter((stop) => !typedRequests.some((request) => request.bin_id === stop.id && request.assigned_vehicle_id));
     if (!route.stops.length) {
       route = buildVehicleRoutePlan({
         vehicle: {

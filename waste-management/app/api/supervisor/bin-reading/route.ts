@@ -28,11 +28,47 @@ export async function POST(request: NextRequest) {
     if (readingError && !readingError.message.includes("duplicate")) return NextResponse.json({ error: readingError.message }, { status: 400 });
 
     const status = input.fill_percentage >= 80 ? "critical" : input.fill_percentage >= 50 ? "warning" : "healthy";
-    await admin.from("bins").update({ fill_percentage: input.fill_percentage, current_fill_kg: input.measured_weight_kg ?? Math.round((input.fill_percentage / 100) * bin.capacity_kg * 10) / 10, status, reading_source: input.reading_source, sensor_status: input.sensor_status ?? "healthy", reading_recorded_at: new Date().toISOString(), last_updated: new Date().toISOString() }).eq("id", input.bin_id);
+    const isReactivatedBin = bin.status === "picked_up" || (bin.fill_percentage ?? 0) <= 5;
+    await admin.from("bins").update({
+      fill_percentage: input.fill_percentage,
+      current_fill_kg: input.measured_weight_kg ?? Math.round((input.fill_percentage / 100) * bin.capacity_kg * 10) / 10,
+      status: isReactivatedBin ? status : status,
+      reading_source: input.reading_source,
+      sensor_status: input.sensor_status ?? "healthy",
+      reading_recorded_at: new Date().toISOString(),
+      last_updated: new Date().toISOString(),
+    }).eq("id", input.bin_id);
     if (input.fill_percentage < 80) return NextResponse.json({ status: "healthy", request: null, alert: null });
 
-    const { data: existingRequest } = await admin.from("collection_requests").select("*").eq("bin_id", input.bin_id).in("status", ["unassigned", "assigned", "accepted", "in_progress", "partially_completed", "resolved", "picked_up"]).maybeSingle();
-    const requestRecord = existingRequest ?? (await admin.from("collection_requests").insert({ id: `REQ-${input.bin_id}`, bin_id: input.bin_id, urgency: input.fill_percentage >= 90 ? "urgent" : "high", reason: "fill_threshold", required_quantity_kg: input.measured_weight_kg ?? Math.round((input.fill_percentage / 100) * bin.capacity_kg), waste_stream: bin.waste_type, status: "unassigned" }).select("*").single()).data;
+    const activeRequestStatuses = ["unassigned", "assigned", "accepted", "in_progress", "partially_completed"];
+    const completedRequestStatuses = ["resolved", "picked_up"];
+    const { data: activeRequest } = await admin.from("collection_requests").select("*").eq("bin_id", input.bin_id).in("status", activeRequestStatuses).maybeSingle();
+    const { data: completedRequest } = await admin.from("collection_requests").select("*").eq("bin_id", input.bin_id).in("status", completedRequestStatuses).maybeSingle();
+
+    let requestRecord = activeRequest ?? null;
+    if (!requestRecord && completedRequest) {
+      const reactivated = await admin.from("collection_requests").update({
+        status: "unassigned",
+        assigned_vehicle_id: null,
+        assigned_route_id: null,
+        reservation_kg: 0,
+        unassigned_reason: null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", completedRequest.id).select("*").single();
+      requestRecord = reactivated.data ?? completedRequest;
+    }
+    if (!requestRecord) {
+      const inserted = await admin.from("collection_requests").insert({
+        id: `REQ-${input.bin_id}`,
+        bin_id: input.bin_id,
+        urgency: input.fill_percentage >= 90 ? "urgent" : "high",
+        reason: "fill_threshold",
+        required_quantity_kg: input.measured_weight_kg ?? Math.round((input.fill_percentage / 100) * bin.capacity_kg),
+        waste_stream: bin.waste_type,
+        status: "unassigned",
+      }).select("*").single();
+      requestRecord = inserted.data;
+    }
     if (!requestRecord) return NextResponse.json({ error: "Unable to create collection request." }, { status: 500 });
     const alertId = `ALERT-REQ-${requestRecord.id}`;
     await admin.from("alerts").upsert({ id: alertId, bin_id: input.bin_id, collection_request_id: requestRecord.id, type: "overflow", severity: input.fill_percentage >= 90 ? "critical" : "warning", message: `${input.bin_id} at ${bin.location_name} requires collection (${input.fill_percentage}% full).`, is_read: false }, { onConflict: "id" });

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, LockKeyhole, Mail, Recycle } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -9,14 +9,31 @@ import { Input } from "@/components/ui/input";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const { signIn, resetPassword, changePassword, profile } = useAuth();
+  const { signIn, resetPassword, changePassword, profile, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [mode, setMode] = useState<"login" | "reset" | "change">(searchParams.get("mode") === "reset" ? "reset" : searchParams.get("mode") === "change" ? "change" : "login");
+  const [mode, setMode] = useState<"login" | "reset" | "change">("login");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const modeFromQuery = searchParams.get("mode");
+  const resolvedMode = modeFromQuery === "reset" ? "reset" : modeFromQuery === "change" ? "change" : "login";
+
+  useEffect(() => {
+    setMode(resolvedMode);
+  }, [resolvedMode]);
+
+  if (mode === "change" && !user) {
+    return (
+      <main className="min-h-screen bg-background px-5 py-10 sm:flex sm:items-center sm:justify-center">
+        <section className="w-full max-w-md rounded-2xl border border-border bg-card p-7 shadow-sm sm:p-9">
+          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">Auth session missing. Please sign in again.</p>
+        </section>
+      </main>
+    );
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

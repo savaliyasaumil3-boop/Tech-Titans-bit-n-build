@@ -48,10 +48,44 @@ export async function POST(request: NextRequest) {
       driverName = existing.full_name ?? driverName;
     } else {
       if (!input.driver_email?.trim() || !input.temporary_password || !driverName) return NextResponse.json({ error: "New drivers require name, email, and a temporary password." }, { status: 400 });
-      const { data: created, error } = await admin.auth.admin.createUser({ email: input.driver_email.trim().toLowerCase(), password: input.temporary_password, email_confirm: true, user_metadata: { full_name: driverName } });
+      const { data: created, error } = await admin.auth.admin.createUser({
+        email: input.driver_email.trim().toLowerCase(),
+        password: input.temporary_password,
+        email_confirm: true,
+        user_metadata: { full_name: driverName, role: "driver" },
+        app_metadata: { role: "driver" },
+      });
       if (error || !created.user) return NextResponse.json({ error: error?.message ?? "Unable to create driver account." }, { status: 400 });
       driverId = created.user.id;
-      const { error: profileError } = await admin.from("profiles").insert({ id: driverId, role: "driver", full_name: driverName, driver_id: `DRIVER-${created.user.id.slice(0, 8).toUpperCase()}`, phone: input.driver_phone ?? null, must_change_password: true, is_active: true });
+
+      const driverProfile = {
+        id: driverId,
+        role: "driver",
+        full_name: driverName,
+        driver_id: `DRIVER-${created.user.id.slice(0, 8).toUpperCase()}`,
+        phone: input.driver_phone ?? null,
+        must_change_password: true,
+        is_active: true,
+      };
+
+      let profileError = null;
+      const { error: primaryError } = await admin.from("profiles").insert(driverProfile);
+      if (primaryError) {
+        const message = primaryError.message.toLowerCase();
+        if (message.includes("does not exist") || message.includes("column")) {
+          const { error: fallbackError } = await admin.from("profiles").insert({
+            id: driverId,
+            role: "driver",
+            full_name: driverName,
+            driver_id: `DRIVER-${created.user.id.slice(0, 8).toUpperCase()}`,
+            phone: input.driver_phone ?? null,
+          });
+          profileError = fallbackError;
+        } else {
+          profileError = primaryError;
+        }
+      }
+
       if (profileError) {
         await admin.auth.admin.deleteUser(driverId);
         return NextResponse.json({ error: profileError.message }, { status: 400 });
