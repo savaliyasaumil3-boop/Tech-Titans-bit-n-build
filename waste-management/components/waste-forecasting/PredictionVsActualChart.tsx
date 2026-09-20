@@ -34,21 +34,21 @@ export function PredictionVsActualChart({ metrics }: PredictionVsActualChartProp
   ];
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6 mb-6">
+    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6 mb-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <div>
-          <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-400" />
+          <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <Activity className="w-5 h-5 text-emerald-500" />
             AI Model Accuracy & Feedback Loop
           </h3>
-          <p className="text-xs text-slate-400">Post-collection actuals vs predictions for continuous ML learning</p>
+          <p className="text-xs text-muted-foreground">Post-collection actuals vs predictions for continuous ML learning</p>
         </div>
 
         <button
           onClick={handleRetrain}
           disabled={retraining}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-600/20 transition flex items-center gap-2 self-start sm:self-auto"
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-2 self-start sm:self-auto cursor-pointer"
         >
           <RefreshCw className={`w-4 h-4 ${retraining ? "animate-spin" : ""}`} />
           {retraining ? "Retraining ML Model..." : "Retrain ML Model Now"}
@@ -56,36 +56,36 @@ export function PredictionVsActualChart({ metrics }: PredictionVsActualChartProp
       </div>
 
       {retrained && (
-        <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 font-bold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           Forecasting Model Retrained Successfully on 27,276 Historical Records!
         </div>
       )}
 
       {/* Model Accuracy Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-xl text-center">
-          <span className="text-[11px] text-slate-400 block uppercase font-mono">Mean Absolute Error (MAE)</span>
-          <strong className="text-2xl font-extrabold text-emerald-400 mt-1 block">{metrics.mae} kg</strong>
-          <span className="text-[10px] text-slate-500 block">Average prediction deviation</span>
+        <div className="bg-muted/40 border border-border p-4 rounded-xl text-center">
+          <span className="text-[11px] text-muted-foreground block uppercase font-mono">Mean Absolute Error (MAE)</span>
+          <strong className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 block">{metrics.mae} kg</strong>
+          <span className="text-[10px] text-muted-foreground block">Average prediction deviation</span>
         </div>
 
-        <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-xl text-center">
-          <span className="text-[11px] text-slate-400 block uppercase font-mono">Root Mean Sq. Error (RMSE)</span>
-          <strong className="text-2xl font-extrabold text-sky-400 mt-1 block">{metrics.rmse} kg</strong>
-          <span className="text-[10px] text-slate-500 block">Variance-weighted error</span>
+        <div className="bg-muted/40 border border-border p-4 rounded-xl text-center">
+          <span className="text-[11px] text-muted-foreground block uppercase font-mono">Root Mean Sq. Error (RMSE)</span>
+          <strong className="text-2xl font-extrabold text-sky-600 dark:text-sky-400 mt-1 block">{metrics.rmse} kg</strong>
+          <span className="text-[10px] text-muted-foreground block">Variance-weighted error</span>
         </div>
 
-        <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-xl text-center">
-          <span className="text-[11px] text-slate-400 block uppercase font-mono">R² Fit Score</span>
-          <strong className="text-2xl font-extrabold text-purple-400 mt-1 block">{metrics.r2}</strong>
-          <span className="text-[10px] text-purple-300/80 block">88% variance explained</span>
+        <div className="bg-muted/40 border border-border p-4 rounded-xl text-center">
+          <span className="text-[11px] text-muted-foreground block uppercase font-mono">R² Fit Score</span>
+          <strong className="text-2xl font-extrabold text-purple-600 dark:text-purple-400 mt-1 block">{metrics.r2}</strong>
+          <span className="text-[10px] text-muted-foreground block">88% variance explained</span>
         </div>
 
-        <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-xl text-center">
-          <span className="text-[11px] text-slate-400 block uppercase font-mono">Trained Records</span>
-          <strong className="text-2xl font-extrabold text-amber-400 mt-1 block">{metrics.trained_records.toLocaleString()}</strong>
-          <span className="text-[10px] text-slate-500 block">90-day time-series history</span>
+        <div className="bg-muted/40 border border-border p-4 rounded-xl text-center">
+          <span className="text-[11px] text-muted-foreground block uppercase font-mono">Trained Records</span>
+          <strong className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1 block">{metrics.trained_records.toLocaleString()}</strong>
+          <span className="text-[10px] text-muted-foreground block">90-day time-series history</span>
         </div>
       </div>
 
@@ -93,16 +93,23 @@ export function PredictionVsActualChart({ metrics }: PredictionVsActualChartProp
       <div className="h-[240px] w-full pt-2">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={errorFeedbackData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-            <XAxis dataKey="source" stroke="#94a3b8" fontSize={10} tickLine={false} />
-            <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <XAxis dataKey="source" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} />
+            <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} />
             <Tooltip
-              contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", fontSize: "12px" }}
+              contentStyle={{
+                backgroundColor: "var(--popover)",
+                borderColor: "var(--border)",
+                color: "var(--popover-foreground)",
+                borderRadius: "12px",
+                fontSize: "12px",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+              }}
               formatter={(val: any) => [`${val} kg`, ""]}
             />
             <Legend wrapperStyle={{ fontSize: "11px" }} />
             <Bar dataKey="predicted" name="Predicted Quantity" fill="#10b981" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="actual" name="Actual Collected" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="actual" name="Actual Collected" fill="#0284c7" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
