@@ -4,6 +4,14 @@
 
 ---
 
+## 🌐 Live Production Deployment Links
+
+- 🚀 **Live Frontend Web Application (Vercel)**: [https://tech-titans-bit-n-build.vercel.app](https://tech-titans-bit-n-build.vercel.app)
+- ⚡ **Live FastAPI Backend & Interactive Swagger API (Render)**: [https://tech-titans-bit-n-build.onrender.com/docs](https://tech-titans-bit-n-build.onrender.com/docs)
+- 🩺 **Backend Health & DB Readiness Check**: [https://tech-titans-bit-n-build.onrender.com/api/health](https://tech-titans-bit-n-build.onrender.com/api/health)
+
+---
+
 ## 📌 Executive Summary
 
 **SwachhSetu** is an enterprise-grade, end-to-end AI-powered municipal waste management platform designed for smart cities (configured for **Ahmedabad Municipal Corporation**). It combines real-time IoT ultrasonic sensor monitoring, 3D Digital Twin inspection, machine learning fill & hotspot forecasting, vision-based waste material sorting, supervisor dispatching, driver mobile routing, and Google OR-Tools vehicle route optimization into a unified real-time dashboard.
@@ -33,10 +41,10 @@
 - **Driver Dispatch App**: Dedicated driver UI (`/driver/dashboard`) with step-by-step navigation, collection confirmation, and capacity progress tracking.
 - **Impact Metrics**: Displays distance savings, fuel reduction, and CO₂ offset metrics compared to unoptimized baselines.
 
-### ⚡ 5. Dual Operation & Render Production Ready
+### ⚡ 5. Dual Operation & Cloud Deployment Ready
 - **Live Supabase Synchronization**: Connects to PostgreSQL Supabase database with Row-Level Security (RLS).
 - **Standalone Demo Mode**: Automatically falls back to simulated local dataset when Supabase credentials are not configured (`NEXT_PUBLIC_DEMO_MODE=true`).
-- **Render Free-Tier Optimization**: Fully configured `render.yaml` with standalone Next.js builds, memory limits (`NODE_OPTIONS="--max-old-space-size=460"`), and single-worker compilation to fit inside 512MB RAM limits without OOM errors.
+- **Production Multi-Cloud Ready**: Vercel frontend deployment paired with low-memory Render FastAPI backend (`render.yaml`).
 
 ---
 
@@ -44,12 +52,14 @@
 
 ### **Frontend**
 - **Framework**: Next.js 16 (App Router), React 19, TypeScript
+- **Deployment**: Vercel ([https://tech-titans-bit-n-build.vercel.app](https://tech-titans-bit-n-build.vercel.app))
 - **Styling**: Tailwind CSS, shadcn/ui, Lucide Icons, tw-animate-css
 - **3D Digital Twin**: Three.js, React Three Fiber (`@react-three/fiber`), Drei (`@react-three/drei`), Framer Motion
 - **State & Charts**: Zustand, Recharts, Leaflet, React-Leaflet
 
 ### **Backend Service**
 - **Framework**: FastAPI (Python 3.10+), Uvicorn (ASGI)
+- **Deployment**: Render ([https://tech-titans-bit-n-build.onrender.com](https://tech-titans-bit-n-build.onrender.com)) using `render.yaml` (512MB RAM memory-tuned)
 - **Optimization & ML**: Google OR-Tools, Scikit-Learn, Pandas, NumPy, Pillow, Pydantic v2
 - **Database Wrapper**: Supabase Python Client, PyJWT, Python-Dotenv
 
@@ -101,7 +111,7 @@ waste-management/
 
 ## ⚙️ Environment Variables Setup
 
-Create or update `.env.local` in the root directory:
+Configure these environment variables in your Vercel project settings:
 
 ```env
 # Frontend Supabase Credentials
@@ -112,11 +122,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
-# Microservices URLs
-NEXT_PUBLIC_ML_API_URL=http://localhost:8000
-FRONTEND_URL=http://localhost:3000
+# Live Backend ML API URL (Points to Render FastAPI service)
+NEXT_PUBLIC_ML_API_URL=https://tech-titans-bit-n-build.onrender.com
+FRONTEND_URL=https://tech-titans-bit-n-build.vercel.app
 
-# Demo Mode Flag ("true" for offline mock mode, "false" for live Supabase)
+# Demo Mode Flag ("true" for offline mock mode, "false" for live backend connection)
 NEXT_PUBLIC_DEMO_MODE=false
 ```
 
@@ -149,14 +159,10 @@ npm run dev
 
 ---
 
-## ☁️ Deploying to Render
+## ☁️ Production Cloud Deployment
 
-This repository includes a production-ready `render.yaml` for zero-downtime deployment on Render:
-
-1. Connect your GitHub repository to [Render](https://render.com).
-2. Create a new **Blueprint** and select `render.yaml`.
-3. Set the required secret environment variables (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_ML_API_URL`).
-4. Render will automatically provision both the `swachhsetu-backend` (FastAPI) and `swachhsetu-frontend` (Next.js Standalone) services.
+- **Frontend (Vercel)**: Deployed live at [https://tech-titans-bit-n-build.vercel.app](https://tech-titans-bit-n-build.vercel.app).
+- **Backend (Render)**: Deployed live at [https://tech-titans-bit-n-build.onrender.com](https://tech-titans-bit-n-build.onrender.com) using `render.yaml` with zero-downtime and 512MB RAM optimization.
 
 ---
 
@@ -164,7 +170,7 @@ This repository includes a production-ready `render.yaml` for zero-downtime depl
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/health` | Health & database readiness check |
+| `GET` | `/api/health` | Service health & database readiness check |
 | `GET` | `/api/bins` | List monitored smart bins ordered by priority |
 | `POST` | `/api/bins/{id}/telemetry` | Ingest ultrasonic fill percentage & battery reading |
 | `GET` | `/api/vehicles` | List fleet vehicles & current coordinates |
@@ -180,3 +186,4 @@ This repository includes a production-ready `render.yaml` for zero-downtime depl
 ## 📜 License & Acknowledgments
 
 Built for municipal smart city deployment by **Tech Titans** (Bit n Build 2026). Designed for high efficiency, urban sustainability, and zero-waste cities.
+
