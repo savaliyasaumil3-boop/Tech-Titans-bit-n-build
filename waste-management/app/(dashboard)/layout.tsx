@@ -36,12 +36,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             collapsed ? "lg:ml-16" : "lg:ml-64"
           )}
         >
-          {/* Mobile nav header */}
-          <div className="lg:hidden flex items-center h-14 px-4 border-b border-border bg-background/95 backdrop-blur-md shrink-0 z-40">
-            <MobileNav />
-            <span className="ml-3 text-lg font-semibold tracking-tight">SwachhSetu</span>
-          </div>
-
           <main className="flex-1 overflow-y-auto">
             {children}
           </main>

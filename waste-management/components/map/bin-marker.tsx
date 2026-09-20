@@ -5,6 +5,8 @@ import L from "leaflet";
 import type { SmartBin } from "@/lib/types";
 import { BinPopup } from "./bin-popup";
 
+import { useBin3DStore } from "@/lib/store/use-bin-3d-store";
+
 function getMarkerColor(fillLevel: number): string {
   if (fillLevel >= 80) return "#ef4444";
   if (fillLevel >= 50) return "#f59e0b";
@@ -28,6 +30,7 @@ function createBinIcon(fillLevel: number) {
       border-radius: 50%;
       ${glow}
       transition: all 0.3s ease;
+      cursor: pointer;
     "></div>`,
   });
 }
@@ -37,10 +40,17 @@ interface BinMarkerProps {
 }
 
 export function BinMarker({ bin }: BinMarkerProps) {
+  const open3DViewer = useBin3DStore((state) => state.open3DViewer);
+
   return (
     <Marker
       position={[bin.lat, bin.lng]}
       icon={createBinIcon(bin.fillLevel)}
+      eventHandlers={{
+        click: () => {
+          open3DViewer(bin.id);
+        },
+      }}
     >
       <Popup maxWidth={280} minWidth={240} closeButton={false}>
         <BinPopup bin={bin} />

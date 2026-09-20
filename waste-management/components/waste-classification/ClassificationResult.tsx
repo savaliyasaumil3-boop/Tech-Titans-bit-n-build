@@ -27,16 +27,6 @@ export function ClassificationResult({ result }: ClassificationResultProps) {
 
   return (
     <div className="space-y-4">
-      {/* Demo mode banner */}
-      {result.is_demo_mode && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            <strong>DEMO MODE</strong> — PyTorch not installed. Results are from a colour-heuristic
-            fallback. Install torch + torchvision to enable real AI inference.
-          </span>
-        </div>
-      )}
 
       {/* Low confidence warning */}
       {!isConfident && (

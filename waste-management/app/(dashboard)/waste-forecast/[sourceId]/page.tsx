@@ -78,8 +78,6 @@ export function SourceForecastDetailPage() {
           </Link>
         </div>
 
-        <DemoDataBanner />
-
         {/* Main Info Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">

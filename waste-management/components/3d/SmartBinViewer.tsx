@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useAppData } from "@/components/providers/app-data-provider";
 import { useBin3DStore, type InspectionAngle } from "@/lib/store/use-bin-3d-store";
 import { SmartBinScene } from "./SmartBinScene";
@@ -24,6 +25,13 @@ import {
   CheckCircle2,
   Lock,
   Unlock,
+  Wind,
+  Droplets,
+  Activity,
+  Cpu,
+  MapPin,
+  ShieldCheck,
+  Zap,
 } from "lucide-react";
 
 export function SmartBinViewer() {
@@ -40,6 +48,8 @@ export function SmartBinViewer() {
     toggleLid,
     setSimulatedFill,
   } = useBin3DStore();
+
+  const [activeTab, setActiveTab] = useState<"telemetry" | "ai" | "hardware">("telemetry");
 
   if (!isOpen || !selectedBinId) return null;
 
@@ -74,23 +84,25 @@ export function SmartBinViewer() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md">
         <motion.div
           initial={{ opacity: 0, scale: 0.94, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 20 }}
           transition={{ duration: 0.25, ease: "easeOut" }}
-          className="relative w-full max-w-6xl h-[90vh] max-h-[850px] bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col text-card-foreground"
+          className="relative w-full max-w-6xl h-[92vh] max-h-[880px] bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col text-card-foreground"
         >
           {/* Header Bar */}
-          <div className="h-16 px-6 border-b border-border bg-muted/40 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20">
+          <div className="h-16 px-4 sm:px-6 border-b border-border bg-muted/40 flex items-center justify-between shrink-0 gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20 shrink-0">
                 <Sparkles className="h-5 w-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold tracking-tight text-foreground">{bin.id} — 3D Digital Twin Inspection</h2>
+                  <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
+                    {bin.id} — 3D Digital Twin Inspection
+                  </h2>
                   <Badge
                     variant={
                       computedStatus === "critical"
@@ -99,17 +111,19 @@ export function SmartBinViewer() {
                         ? "secondary"
                         : "outline"
                     }
-                    className="text-xs px-2 py-0.5 font-bold"
+                    className="text-xs px-2 py-0.5 font-bold shrink-0"
                   >
                     {computedStatus.toUpperCase()}
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground">{bin.location_name} • Ahmedabad Municipal Corporation</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {bin.location_name} • Ahmedabad Municipal Corporation
+                </p>
               </div>
             </div>
 
             {/* Quick Navigation & Close */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center bg-muted rounded-lg p-1 border border-border">
                 <Button
                   size="icon"
@@ -120,7 +134,7 @@ export function SmartBinViewer() {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-xs font-mono font-medium px-2 text-muted-foreground">
+                <span className="text-xs font-mono font-medium px-2 text-muted-foreground hidden sm:inline">
                   {currentBinIndex + 1} / {bins.length}
                 </span>
                 <Button
@@ -148,9 +162,9 @@ export function SmartBinViewer() {
           {/* Main Inspection Viewport Area */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
             {/* Left/Center: Interactive R3F 3D Canvas + Viewport Overlay Controls */}
-            <div className="lg:col-span-8 relative flex flex-col p-4 bg-slate-950 border-r border-border">
+            <div className="lg:col-span-7 xl:col-span-8 relative flex flex-col p-4 bg-slate-950 border-r border-border">
               {/* R3F 3D Canvas */}
-              <div className="flex-1 relative w-full h-full min-h-[400px]">
+              <div className="flex-1 relative w-full h-full min-h-[360px]">
                 <SmartBinScene
                   fillLevel={displayFill}
                   status={computedStatus}
@@ -163,19 +177,19 @@ export function SmartBinViewer() {
               {/* Viewport Control Bar */}
               <div className="mt-4 p-3 rounded-xl bg-card/95 border border-border backdrop-blur-md flex flex-wrap items-center justify-between gap-3 text-card-foreground">
                 {/* View Angle Selector Buttons */}
-                <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg border border-border">
+                <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
                   {angles.map((ang) => (
                     <button
                       key={ang.id}
                       onClick={() => setActiveAngle(ang.id)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
+                      className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
                         activeAngle === ang.id
                           ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                           : "text-muted-foreground hover:text-foreground hover:bg-background"
                       }`}
                     >
                       {ang.icon}
-                      <span>{ang.label}</span>
+                      <span className="hidden sm:inline">{ang.label}</span>
                     </button>
                   ))}
                 </div>
@@ -187,13 +201,13 @@ export function SmartBinViewer() {
                   onClick={toggleLid}
                   className="text-xs gap-1.5 font-semibold"
                 >
-                  {isLidOpen ? <Unlock className="h-3.5 w-3.5 text-yellow-500" /> : <Lock className="h-3.5 w-3.5" />}
+                  {isLidOpen ? <Unlock className="h-3.5 w-3.5 text-amber-500" /> : <Lock className="h-3.5 w-3.5" />}
                   {isLidOpen ? "Close Lid" : "Open Solar Lid"}
                 </Button>
 
                 {/* Interactive Live Fill Level Simulator Slider */}
-                <div className="flex items-center gap-3 min-w-[200px] flex-1 max-w-[280px]">
-                  <span className="text-xs text-muted-foreground font-medium shrink-0">Simulate Fill:</span>
+                <div className="flex items-center gap-3 min-w-[180px] flex-1 max-w-[260px]">
+                  <span className="text-xs text-muted-foreground font-medium shrink-0">Simulate:</span>
                   <Slider
                     value={[displayFill]}
                     min={0}
@@ -209,11 +223,11 @@ export function SmartBinViewer() {
               </div>
             </div>
 
-            {/* Right Panel: Bin Telemetry, Sensors, AI Predictions & Dispatch */}
-            <div className="lg:col-span-4 p-5 space-y-5 overflow-y-auto bg-muted/20">
+            {/* Right Panel: Bin Telemetry, Detailed Sensor Suite, AI Predictions & Specs */}
+            <div className="lg:col-span-5 xl:col-span-4 p-4 space-y-4 overflow-y-auto bg-muted/20">
               {/* Telemetry Summary Cards */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-xl bg-card border border-border">
+                <div className="p-3 rounded-xl bg-card border border-border">
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                     <span>Fill Level</span>
                     <Layers className="h-3.5 w-3.5 text-primary" />
@@ -222,7 +236,7 @@ export function SmartBinViewer() {
                   <p className="text-[11px] text-muted-foreground">{displayKg} / {bin.capacity_kg} kg payload</p>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-card border border-border">
+                <div className="p-3 rounded-xl bg-card border border-border">
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                     <span>Priority Score</span>
                     {computedStatus === "critical" ? (
@@ -232,57 +246,209 @@ export function SmartBinViewer() {
                     )}
                   </div>
                   <p className="text-2xl font-bold tracking-tight text-foreground">{bin.priority_score}</p>
-                  <p className="text-[11px] text-muted-foreground">Dispatch Priority Index</p>
+                  <p className="text-[11px] text-muted-foreground">Urgency Index</p>
                 </div>
               </div>
 
-              {/* Sensor Telemetry List */}
-              <div className="p-4 rounded-xl bg-card border border-border space-y-3">
-                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Wifi className="h-3.5 w-3.5 text-green-500 animate-pulse" />
-                  Live Sensor Telemetry
-                </h3>
-                
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between py-1 border-b border-border/60">
-                    <span className="text-muted-foreground">Ultrasonic Clearance</span>
-                    <span className="font-mono font-semibold text-foreground">
-                      {Math.round((1 - displayFill / 100) * 110)} cm
-                    </span>
-                  </div>
+              {/* Detail Navigation Tabs */}
+              <div className="grid grid-cols-3 gap-1 bg-muted p-1 rounded-xl border border-border text-xs font-semibold">
+                <button
+                  onClick={() => setActiveTab("telemetry")}
+                  className={`py-1.5 px-2 rounded-lg transition-all text-center ${
+                    activeTab === "telemetry"
+                      ? "bg-card text-foreground shadow-xs border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Sensors
+                </button>
+                <button
+                  onClick={() => setActiveTab("ai")}
+                  className={`py-1.5 px-2 rounded-lg transition-all text-center ${
+                    activeTab === "ai"
+                      ? "bg-card text-foreground shadow-xs border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  AI Stream
+                </button>
+                <button
+                  onClick={() => setActiveTab("hardware")}
+                  className={`py-1.5 px-2 rounded-lg transition-all text-center ${
+                    activeTab === "hardware"
+                      ? "bg-card text-foreground shadow-xs border border-border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Hardware & GPS
+                </button>
+              </div>
 
-                  <div className="flex justify-between py-1 border-b border-border/60">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Battery className="h-3 w-3 text-green-500" /> Battery Charge
-                    </span>
-                    <span className="font-mono font-semibold text-foreground">94% (Solar Charged)</span>
-                  </div>
+              {/* Tab 1: Live Sensors & Safety Telemetry */}
+              {activeTab === "telemetry" && (
+                <div className="p-4 rounded-xl bg-card border border-border space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Wifi className="h-3.5 w-3.5 text-green-500 animate-pulse" />
+                    Detailed Sensor Suite
+                  </h3>
 
-                  <div className="flex justify-between py-1 border-b border-border/60">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Thermometer className="h-3 w-3 text-amber-500" /> Internal Temperature
-                    </span>
-                    <span className="font-mono font-semibold text-foreground">31.4 °C</span>
-                  </div>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Activity className="h-3.5 w-3.5 text-primary" /> Ultrasonic Distance
+                      </span>
+                      <span className="font-mono font-semibold text-foreground">
+                        {Math.round((1 - displayFill / 100) * 110)} cm
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between py-1 border-b border-border/60">
-                    <span className="text-muted-foreground">Waste Material Stream</span>
-                    <span className="font-medium text-primary">{bin.waste_type}</span>
-                  </div>
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Wind className="h-3.5 w-3.5 text-amber-500" /> Gas & CH4 Level
+                      </span>
+                      <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                        12 PPM (Safe Level)
+                      </span>
+                    </div>
 
-                  <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-blue-500" /> Predicted Overflow
-                    </span>
-                    <span className="font-mono font-bold text-amber-600">
-                      In ~{bin.predicted_full_hours} Hours
-                    </span>
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Droplets className="h-3.5 w-3.5 text-blue-500" /> Internal Humidity
+                      </span>
+                      <span className="font-mono font-semibold text-foreground">54% RH</span>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Battery className="h-3.5 w-3.5 text-green-500" /> Solar Battery
+                      </span>
+                      <span className="font-mono font-semibold text-foreground">94% (5.2V Active)</span>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Thermometer className="h-3.5 w-3.5 text-amber-500" /> Chamber Temp
+                      </span>
+                      <span className="font-mono font-semibold text-foreground">31.4 °C</span>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> Tilt & Gyroscope
+                      </span>
+                      <span className="font-mono font-semibold text-foreground">0.4° (Upright)</span>
+                    </div>
+
+                    <div className="flex justify-between py-1">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <Flame className="h-3.5 w-3.5 text-red-500" /> Smoke & Fire Sensor
+                      </span>
+                      <span className="font-mono font-bold text-green-600 dark:text-green-400">
+                        Normal (0 Risk)
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* Tab 2: AI Stream Analytics & Compaction */}
+              {activeTab === "ai" && (
+                <div className="p-4 rounded-xl bg-card border border-border space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                    AI Stream Analytics
+                  </h3>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <div className="flex justify-between text-muted-foreground mb-1">
+                        <span>Waste Material Stream</span>
+                        <span className="font-bold text-primary">{bin.waste_type}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden flex">
+                        <div className="h-full bg-emerald-500" style={{ width: "55%" }} title="Organic 55%" />
+                        <div className="h-full bg-blue-500" style={{ width: "30%" }} title="Dry Recyclable 30%" />
+                        <div className="h-full bg-amber-500" style={{ width: "15%" }} title="Glass/Metal 15%" />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                        <span>Organic (55%)</span>
+                        <span>Dry (30%)</span>
+                        <span>Other (15%)</span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground">AI Contamination Risk</span>
+                      <span className="font-mono font-semibold text-green-600 dark:text-green-400">Low (6%)</span>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground">Compactor Efficiency</span>
+                      <span className="font-mono font-semibold text-foreground">88% Compression</span>
+                    </div>
+
+                    <div className="flex justify-between py-1">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5 text-blue-500" /> Overflow ETA
+                      </span>
+                      <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                        In ~{bin.predicted_full_hours} Hours
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Location, Route & Hardware Specs */}
+              {activeTab === "hardware" && (
+                <div className="p-4 rounded-xl bg-card border border-border space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Cpu className="h-3.5 w-3.5 text-blue-500" />
+                    Hardware & Location Specs
+                  </h3>
+
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5 text-destructive" /> Coordinates
+                      </span>
+                      <span className="font-mono font-semibold text-foreground">
+                        {((bin as any).lat ?? (bin as any).latitude ?? 23.0225).toFixed(4)}° N, {((bin as any).lng ?? (bin as any).longitude ?? 72.5714).toFixed(4)}° E
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground">Municipal Zone</span>
+                      <span className="font-medium text-foreground">AMC Zone 4 (Navrangpura)</span>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground">Last Serviced</span>
+                      <span className="font-medium text-foreground">Today at 08:30 AM</span>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Truck className="h-3.5 w-3.5 text-primary" /> Route Assignment
+                      </span>
+                      <span className="font-medium text-foreground">Route R-104 (GJ-01-WM-4092)</span>
+                    </div>
+
+                    <div className="flex justify-between py-1 border-b border-border/60">
+                      <span className="text-muted-foreground">IoT Network</span>
+                      <span className="font-mono text-foreground">NB-IoT (-76 dBm)</span>
+                    </div>
+
+                    <div className="flex justify-between py-1">
+                      <span className="text-muted-foreground">Edge Firmware</span>
+                      <span className="font-mono text-foreground">v2.4.1-smart-edge</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
-              <div className="space-y-2">
+              <div className="space-y-2 pt-2">
                 <Button
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-2"
                   onClick={() => {

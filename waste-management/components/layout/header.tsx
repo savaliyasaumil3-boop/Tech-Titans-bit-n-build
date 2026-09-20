@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAppData } from "@/components/providers/app-data-provider";
 import { useAuth } from "@/components/providers/auth-provider";
+import { MobileNav } from "@/components/layout/mobile-nav";
 
 interface HeaderProps {
   title: string;
@@ -44,26 +45,42 @@ export function Header({ title, subtitle }: HeaderProps) {
     localStorage.setItem("swachhsetu-theme", next ? "dark" : "light");
   }
 
+  // Get user initials for avatar
+  const initials = profile?.full_name
+    ? profile.full_name
+        .split(" ")
+        .map((n) => n[0])
+        .filter(Boolean)
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "AD";
+
   return (
-    <header className="h-16 border-b border-border bg-background/95 backdrop-blur-md px-6 flex items-center justify-between gap-4 sticky top-0 z-40 shrink-0">
-      {/* Left: Page title */}
-      <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight truncate">
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-sm text-muted-foreground truncate">{subtitle}</p>
-        )}
+    <header className="h-16 border-b border-border bg-background/95 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-40 shrink-0">
+      {/* Left: Mobile Nav Drawer Trigger + Page Title */}
+      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+        <MobileNav />
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-xl font-semibold tracking-tight truncate">
+            {title}
+          </h1>
+          {subtitle && (
+            <p className="text-xs sm:text-sm text-muted-foreground truncate hidden sm:block">
+              {subtitle}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Right: Search, Dark Mode, Notifications, User */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {/* Search — hidden on mobile */}
         <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search bins, vehicles..."
-            className="w-[240px] rounded-lg pl-9 h-9 text-sm"
+            className="w-[200px] lg:w-[240px] rounded-lg pl-9 h-9 text-sm"
           />
         </div>
 
@@ -92,7 +109,7 @@ export function Header({ title, subtitle }: HeaderProps) {
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
-                    AD
+                    {initials}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -100,8 +117,8 @@ export function Header({ title, subtitle }: HeaderProps) {
           />
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="font-normal">
-              <p className="text-sm font-medium">{profile?.full_name ?? "Supervisor"}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm font-medium truncate">{profile?.full_name ?? "Supervisor"}</p>
+              <p className="text-xs text-muted-foreground truncate">
                 {user?.email ?? ""}
               </p>
             </DropdownMenuLabel>

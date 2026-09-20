@@ -74,8 +74,6 @@ export default function SupervisorWasteHotspotsPage() {
           </div>
         </div>
 
-        <DemoDataBanner />
-
         {/* Date & Time Slider Control Card */}
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-3">

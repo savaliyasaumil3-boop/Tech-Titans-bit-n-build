@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { BinMarker } from "./bin-marker";
 import { MapLegend } from "./map-legend";
 import { VehicleMarker, RoutePolyline, OrderMarker } from "./vehicle-marker";
 import type { SmartBin } from "@/lib/types";
 import type { DbBin, DbVehicle, OptimizedRoute } from "@/lib/db-types";
+import { useBin3DStore } from "@/lib/store/use-bin-3d-store";
 
 interface MapViewProps {
   bins?: SmartBin[];
@@ -16,6 +17,33 @@ interface MapViewProps {
   focusedBinId?: string | null;
   isSimulating?: boolean;
   simulatingVehicleId?: string;
+}
+
+function MapClickHandler({ bins }: { bins: SmartBin[] }) {
+  const open3DViewer = useBin3DStore((state) => state.open3DViewer);
+
+  useMapEvents({
+    click(e) {
+      if (!bins || bins.length === 0) return;
+      const { lat, lng } = e.latlng;
+      let nearestBin = bins[0];
+      let minDistance = Infinity;
+
+      bins.forEach((b) => {
+        const d = Math.hypot(b.lat - lat, b.lng - lng);
+        if (d < minDistance) {
+          minDistance = d;
+          nearestBin = b;
+        }
+      });
+
+      if (nearestBin) {
+        open3DViewer(nearestBin.id);
+      }
+    },
+  });
+
+  return null;
 }
 
 function FitBounds({ bins, dbBins }: { bins?: SmartBin[]; dbBins?: DbBin[] }) {
@@ -106,6 +134,7 @@ export function MapView({ bins, dbBins, vehicles, activeRoute, focusedBinId, isS
 
         <FitBounds bins={bins} dbBins={dbBins} />
         <FocusBin binId={focusedBinId} dbBins={dbBins} />
+        <MapClickHandler bins={allSmartBins} />
 
         {/* Bin markers */}
         {allSmartBins.map((bin) => (

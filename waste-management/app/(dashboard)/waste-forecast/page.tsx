@@ -103,10 +103,7 @@ export default function SupervisorWasteForecastPage() {
           </div>
         </div>
 
-        {/* Demo Data Banner */}
-      <DemoDataBanner />
-
-      {/* KPI Cards */}
+        {/* KPI Cards */}
       <WasteForecastKPIs
         totalSources={totalSources}
         totalPredictedKg={totalPredictedKg}
