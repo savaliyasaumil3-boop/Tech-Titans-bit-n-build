@@ -121,7 +121,7 @@ export default function SupervisorWasteForecastPage() {
             <MapPin className="w-4 h-4 text-emerald-500" />
             Ahmedabad Location Hotspot Generation Map
           </h3>
-          <span className="text-xs text-muted-foreground">Click any source marker for right-side supervisor planning</span>
+          <span className="text-xs text-muted-foreground">Click "View Supervisor Planning" inside marker popup to open side panel</span>
         </div>
         <WasteSourceMap
           sources={sources}

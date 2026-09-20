@@ -121,9 +121,6 @@ export function WasteSourceMap({
               <Marker
                 position={[lat, lng]}
                 icon={createCustomIcon(risk, stype)}
-                eventHandlers={{
-                  click: () => onSelectSource(item.id),
-                }}
               >
                 <Popup className="dark-popup">
                   <div className="p-2 min-w-[200px] text-foreground">

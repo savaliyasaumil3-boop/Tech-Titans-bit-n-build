@@ -130,7 +130,7 @@ export default function SupervisorWasteHotspotsPage() {
               <Layers className="w-4 h-4 text-purple-500" />
               Predicted Spatial Hotspots for {selectedDate} at {selectedHour}:00
             </h3>
-            <span className="text-xs text-muted-foreground">Click marker for supervisor dispatch planning</span>
+            <span className="text-xs text-muted-foreground">Click "View Supervisor Planning" inside marker popup to open side panel</span>
           </div>
 
           <WasteSourceMap
